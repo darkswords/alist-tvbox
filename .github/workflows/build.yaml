@@ -90,6 +90,25 @@ jobs:
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/xiaoya-tvbox:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
+      - name: Set build timestamp tag
+        run: |
+          export TZ=Asia/Shanghai
+          TIMESTAMP=$(date +"%Y%m%d%H%M%S")
+          echo "Build Timestamp: $TIMESTAMP"
+          echo "$TIMESTAMP" >> data/build_timestamp
+        shell: bash
+
+      - name: Build docker and push with timestamp tag
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          file: Dockerfile-xiaoya
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/xiaoya-tvbox:$TIMESTAMP
+          cache-from: type=gha
+          cache-to: type=gha,mode=max          
       - name: Build host mode docker and push
         uses: docker/build-push-action@v4
         with:
