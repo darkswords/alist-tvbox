@@ -290,7 +290,6 @@ public class BiliBiliService {
                 .defaultHeader(HttpHeaders.USER_AGENT, Constants.OK_USER_AGENT)
                 .build();
         this.restTemplate = builder
-                .defaultHeader(HttpHeaders.REFERER, "https://www.bilibili.com/")
                 .defaultHeader(HttpHeaders.USER_AGENT, Constants.USER_AGENT)
                 .build();
         this.objectMapper = objectMapper;
@@ -379,10 +378,17 @@ public class BiliBiliService {
 
     public CategoryList getCategoryList() {
         getLoginStatus();
+        List<NavigationDto> ups = new ArrayList<>();
+        List<NavigationDto> list = navigationService.list();
+        boolean merge = list.stream().filter(NavigationDto::isShow).map(NavigationDto::getValue).anyMatch("ups"::equals);
         CategoryList result = new CategoryList();
-        navigationService.list().stream()
+        list.stream()
                 .filter(NavigationDto::isShow)
                 .forEach(item -> {
+                    if (merge && item.getType() == 5) {
+                        ups.add(item);
+                        return;
+                    }
                     Category category = new Category();
                     String value = item.getValue();
                     if (item.getType() == 3) {
@@ -434,6 +440,11 @@ public class BiliBiliService {
                     }
                     result.getCategories().add(category);
                 });
+
+        if (merge && !ups.isEmpty()) {
+            List<FilterValue> filters = ups.stream().map(e -> new FilterValue(e.getName(), e.getValue())).toList();
+            result.getFilters().put("ups", List.of(new Filter("type", "作者", filters), new Filter("sort", "排序", filters6)));
+        }
 
         result.setTotal(result.getCategories().size());
         result.setLimit(result.getCategories().size());
@@ -506,7 +517,7 @@ public class BiliBiliService {
         movieDetail.setVod_name(info.getTitle());
         movieDetail.setVod_tag(FILE);
         movieDetail.setVod_pic(fixCover(info.getPic()));
-        movieDetail.setVod_remarks(seconds2String(info.getDuration()));
+        movieDetail.setVod_remarks(playCount(info.getPlay()) + seconds2String(info.getDuration()));
         return movieDetail;
     }
 
@@ -586,6 +597,14 @@ public class BiliBiliService {
         }
 
         return movieDetail;
+    }
+
+    private String playCount(String view) {
+        try {
+            return playCount(Integer.parseInt(view));
+        } catch (Exception e) {
+            return "";
+        }
     }
 
     private String playCount(int view) {
@@ -693,15 +712,19 @@ public class BiliBiliService {
         map.put("order", sort);
         map.put("platform", "web");
         map.put("order_avoided", "true");
+        map.put("dm_img_list", "[]");
+        map.put("dm_img_str", "bm8gd2ViZ2");
+        map.put("dm_cover_img_str", "bm8gd2ViZ2");
         map.put("pn", String.valueOf(page));
 
-        getKeys(buildHttpEntity(null));
+        HttpEntity<Void> entity = buildHttpEntity(null);
+        getKeys(entity);
         String url = NEW_SEARCH_API + "?" + Utils.encryptWbi(map, imgKey, subKey);
         log.debug("getUpMedia: {}", url);
 
-        BiliBiliSearchInfoResponse response = restTemplate.getForObject(url, BiliBiliSearchInfoResponse.class);
-        log.debug("{}", response);
-        BiliBiliSearchInfo searchInfo = response.getData();
+        ResponseEntity<BiliBiliSearchInfoResponse> response = restTemplate.exchange(url, HttpMethod.GET, entity, BiliBiliSearchInfoResponse.class);
+        log.debug("{}", response.getBody());
+        BiliBiliSearchInfo searchInfo = response.getBody().getData();
         List<MovieDetail> list = new ArrayList<>();
         MovieList result = new MovieList();
         for (BiliBiliSearchInfo.Video info : searchInfo.getList().getVlist()) {
@@ -710,7 +733,7 @@ public class BiliBiliService {
             movieDetail.setVod_name(info.getTitle());
             movieDetail.setVod_tag(FILE);
             movieDetail.setVod_pic(fixCover(info.getPic()));
-            movieDetail.setVod_remarks(info.getLength());
+            movieDetail.setVod_remarks(playCount(info.getPlay()) + info.getLength());
             list.add(movieDetail);
         }
 
@@ -754,16 +777,20 @@ public class BiliBiliService {
         map.put("order", sort);
         map.put("platform", "web");
         map.put("order_avoided", "true");
+        map.put("dm_img_list", "[]");
+        map.put("dm_img_str", "bm8gd2ViZ2");
+        map.put("dm_cover_img_str", "bm8gd2ViZ2");
         map.put("pn", page);
 
-        getKeys(buildHttpEntity(null));
+        HttpEntity<Void> entity = buildHttpEntity(null);
+        getKeys(entity);
         String url = NEW_SEARCH_API + "?" + Utils.encryptWbi(map, imgKey, subKey);
         log.debug("getUpMedia: {}", url);
 
-        BiliBiliSearchInfoResponse response = restTemplate.getForObject(url, BiliBiliSearchInfoResponse.class);
-        log.debug("getUpPlaylist: url {}", url, response);
+        ResponseEntity<BiliBiliSearchInfoResponse> response = restTemplate.exchange(url, HttpMethod.GET, entity, BiliBiliSearchInfoResponse.class);
+        log.debug("{}", response.getBody());
         List<BiliBiliSearchInfo.Video> list = new ArrayList<>();
-        List<BiliBiliSearchInfo.Video> videos = response.getData().getList().getVlist();
+        List<BiliBiliSearchInfo.Video> videos = response.getBody().getData().getList().getVlist();
         list.addAll(videos);
 
         long seconds = list.stream().map(BiliBiliSearchInfo.Video::getLength).mapToLong(Utils::durationToSeconds).sum();
@@ -1200,10 +1227,9 @@ public class BiliBiliService {
 
     private <T> HttpEntity<T> buildHttpEntity(T data, boolean urlencoded, Map<String, String> customHeaders) {
         HttpHeaders headers = new HttpHeaders();
-        headers.add(HttpHeaders.REFERER, "https://api.bilibili.com/");
         headers.add(HttpHeaders.ACCEPT_LANGUAGE, "en-US,en;q=0.9,zh-CN;q=0.8,zh;q=0.7,ja;q=0.6,zh-TW;q=0.5");
         headers.add(HttpHeaders.ACCEPT, "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7");
-        headers.add(HttpHeaders.USER_AGENT, "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36");
+        headers.add(HttpHeaders.USER_AGENT, Constants.USER_AGENT);
         if (urlencoded) {
             headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
         }
@@ -1329,6 +1355,9 @@ public class BiliBiliService {
             HttpEntity<Void> entity = buildHttpEntity(null);
             ResponseEntity<BiliBiliV2InfoResponse> response = restTemplate.exchange(url, HttpMethod.GET, entity, BiliBiliV2InfoResponse.class);
             for (BiliBiliV2Info.Subtitle subtitle : response.getBody().getData().getSubtitle().getSubtitles()) {
+                if (subtitle.getLan_doc().contains("中文") && subtitle.getLan_doc().contains("自动生成")) {
+                    continue;
+                }
                 Sub sub = new Sub();
                 sub.setName(subtitle.getLan_doc());
                 sub.setLang(subtitle.getLan());
@@ -1446,6 +1475,24 @@ public class BiliBiliService {
     }
 
     public MovieList getMovieList(String tid, FilterDto filter, int page) {
+        if (tid.equals("ups")) {
+            String id = filter.getType();
+            if (StringUtils.isBlank(id)) {
+                List<String> ups = new ArrayList<>();
+                for (var item : navigationService.list()) {
+                    if (item.getType() == 5) {
+                        ups.add(item.getValue());
+                    }
+                }
+                if (!ups.isEmpty()) {
+                    page--;
+                    id = ups.get(page % ups.size());
+                    page = page / ups.size() + 1;
+                }
+            }
+            return getUpMedia(id, filter.getSort(), page);
+        }
+
         if (tid.startsWith("search:")) {
             String[] parts = tid.split(":");
             return search(parts[1], filter.getSort(), filter.getDuration(), page);
