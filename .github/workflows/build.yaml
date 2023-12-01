@@ -89,7 +89,7 @@ jobs:
           push: true
           tags: |
             ${{ secrets.DOCKERHUB_USERNAME }}/xiaoya-tvbox:latest
-            ${{ secrets.DOCKERHUB_USERNAME }}/xiaoya-tvbox:${{ env.DATE }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/xiaoya-tvbox:${{ steps.date.outputs.date }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
       - name: Build host mode docker and push
