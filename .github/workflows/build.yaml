@@ -6,6 +6,9 @@ on:
   #  types:
   #    - completed
   workflow_dispatch:
+  release:
+    types: [published]
+    tags: [v*]
   #push:
   #  branches:
   #    - master
