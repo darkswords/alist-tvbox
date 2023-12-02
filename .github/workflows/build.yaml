@@ -1,10 +1,10 @@
 name: 'release docker'
 
 on:
-  workflow_run:
-    workflows: [ "release base" ]
-    types:
-      - completed
+  #workflow_run:
+  #  workflows: [ "release base" ]
+  #  types:
+  #    - completed
   workflow_dispatch:
   push:
     branches:
@@ -89,7 +89,7 @@ jobs:
           push: true
           tags: |
             ${{ secrets.DOCKERHUB_USERNAME }}/xiaoya-tvbox:latest
-            ${{ secrets.DOCKERHUB_USERNAME }}/xiaoya-tvbox:${{ github.ref_slug }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/xiaoya-tvbox:${{ env.RELEASE_VERSION }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
       - name: Build host mode docker and push
