@@ -83,6 +83,8 @@ jobs:
           echo "${{ github.event.head_commit.message }}" >> data/version
           cp data/version data/app_version
           cat data/version
+      - name: Set env
+        run: echo "RELEASE_VERSION=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
       - name: Build docker and push
         uses: docker/build-push-action@v4
         with:
