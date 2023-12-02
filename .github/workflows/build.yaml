@@ -84,7 +84,7 @@ jobs:
           cp data/version data/app_version
           cat data/version
       - name: Set env
-        run: echo "RELEASE_VERSION=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
+        run: echo "RELEASE_VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
       - name: Build docker and push
         uses: docker/build-push-action@v4
         with:
