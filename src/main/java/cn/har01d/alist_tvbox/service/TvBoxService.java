@@ -2,23 +2,10 @@ package cn.har01d.alist_tvbox.service;
 
 import cn.har01d.alist_tvbox.config.AppProperties;
 import cn.har01d.alist_tvbox.dto.Subtitle;
-import cn.har01d.alist_tvbox.entity.AListAlias;
-import cn.har01d.alist_tvbox.entity.AListAliasRepository;
-import cn.har01d.alist_tvbox.entity.Account;
-import cn.har01d.alist_tvbox.entity.AccountRepository;
-import cn.har01d.alist_tvbox.entity.Meta;
-import cn.har01d.alist_tvbox.entity.MetaRepository;
-import cn.har01d.alist_tvbox.entity.Movie;
-import cn.har01d.alist_tvbox.entity.ShareRepository;
-import cn.har01d.alist_tvbox.entity.Site;
+import cn.har01d.alist_tvbox.entity.*;
 import cn.har01d.alist_tvbox.exception.BadRequestException;
 import cn.har01d.alist_tvbox.exception.NotFoundException;
-import cn.har01d.alist_tvbox.model.FileNameInfo;
-import cn.har01d.alist_tvbox.model.Filter;
-import cn.har01d.alist_tvbox.model.FilterValue;
-import cn.har01d.alist_tvbox.model.FsDetail;
-import cn.har01d.alist_tvbox.model.FsInfo;
-import cn.har01d.alist_tvbox.model.FsResponse;
+import cn.har01d.alist_tvbox.model.*;
 import cn.har01d.alist_tvbox.tvbox.Category;
 import cn.har01d.alist_tvbox.tvbox.CategoryList;
 import cn.har01d.alist_tvbox.tvbox.MovieDetail;
@@ -34,13 +21,10 @@ import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
 import org.springframework.core.env.Environment;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
+import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
+import org.springframework.web.util.UriComponentsBuilder;
 
 import java.io.File;
 import java.io.IOException;
@@ -51,28 +35,14 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalDate;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-import static cn.har01d.alist_tvbox.util.Constants.ALIST_PIC;
-import static cn.har01d.alist_tvbox.util.Constants.FILE;
-import static cn.har01d.alist_tvbox.util.Constants.FOLDER;
-import static cn.har01d.alist_tvbox.util.Constants.FOLDER_PIC;
-import static cn.har01d.alist_tvbox.util.Constants.LIST_PIC;
-import static cn.har01d.alist_tvbox.util.Constants.PLAYLIST;
+import static cn.har01d.alist_tvbox.util.Constants.*;
 
 @Slf4j
 @Service
@@ -910,7 +880,7 @@ public class TvBoxService {
         return list;
     }
 
-    public Map<String, Object> getPlayUrl(Integer siteId, String path, boolean getSub, boolean sp) {
+    public Map<String, Object> getPlayUrl(Integer siteId, String path, boolean getSub, String client) {
         Site site = siteService.getById(siteId);
         String url = null;
         String name = getNameFromPath(path);
@@ -935,39 +905,34 @@ public class TvBoxService {
 
         List<Subtitle> subtitles = new ArrayList<>();
 
-        if (sp) {
+        if ("com.fongmi.android.tv".equals(client)) {
             var preview = aListService.preview(site, fullPath);
             log.debug("preview: {} {}", fullPath, preview);
-            List<String> urls = new ArrayList<>();
-
-            Collections.reverse(preview.getPlayInfo().getVideos());
-            if (preview.getPlayInfo().getVideos().size() > 1 && preview.getPlayInfo().getVideos().get(0).getId().contains("限速")) {
-                var item = preview.getPlayInfo().getVideos().get(0);
-                preview.getPlayInfo().getVideos().set(0, preview.getPlayInfo().getVideos().get(1));
-                preview.getPlayInfo().getVideos().set(1, item);
-            }
-
-            for (var item : preview.getPlayInfo().getVideos()) {
-                if (!"finished".equals(item.getStatus())) {
-                    continue;
-                }
-                urls.add(item.getId());
-                urls.add(item.getUrl());
-            }
-            if (urls.size() > 1) {
-                url = urls.get(1);
-                result.put("url", urls);
-            }
-
-            if (preview.getPlayInfo().getSubtitles() != null) {
-                for (var item : preview.getPlayInfo().getSubtitles()) {
+            if (preview != null) {
+                Collections.reverse(preview.getPlayInfo().getVideos());
+                List<String> urls = new ArrayList<>();
+                for (var item : preview.getPlayInfo().getVideos()) {
                     if (!"finished".equals(item.getStatus())) {
                         continue;
                     }
-                    Subtitle subtitle = new Subtitle();
-                    subtitle.setUrl(item.getUrl());
-                    subtitle.setLang(item.getLanguage());
-                    subtitles.add(subtitle);
+                    urls.add(item.getId());
+                    urls.add(item.getUrl());
+                }
+                if (urls.size() > 1) {
+                    url = urls.get(1);
+                    result.put("url", urls);
+                }
+
+                if (preview.getPlayInfo().getSubtitles() != null) {
+                    for (var item : preview.getPlayInfo().getSubtitles()) {
+                        if (!"finished".equals(item.getStatus())) {
+                            continue;
+                        }
+                        Subtitle subtitle = new Subtitle();
+                        subtitle.setUrl(item.getUrl());
+                        subtitle.setLang(item.getLanguage());
+                        subtitles.add(subtitle);
+                    }
                 }
             }
         }
@@ -977,7 +942,13 @@ public class TvBoxService {
             if (fsDetail == null) {
                 throw new BadRequestException("找不到文件 " + path);
             }
-            url = fixHttp(fsDetail.getRawUrl());
+
+            if (fsDetail.getProvider().contains("Aliyundrive")) {
+                url = buildUrl(site, path, fsDetail.getSign());
+            } else {
+                url = fixHttp(fsDetail.getRawUrl());
+            }
+
             result.put("url", url);
         }
 
@@ -1005,16 +976,16 @@ public class TvBoxService {
         return result;
     }
 
-    public Map<String, Object> getPlayUrl(Integer siteId, Integer id, boolean getSub, boolean sp) {
+    public Map<String, Object> getPlayUrl(Integer siteId, Integer id, boolean getSub, String client) {
         Meta meta = metaRepository.findById(id).orElseThrow(NotFoundException::new);
         log.debug("getPlayUrl: {} {}", siteId, id);
-        return getPlayUrl(siteId, meta.getPath(), getSub, sp);
+        return getPlayUrl(siteId, meta.getPath(), getSub, client);
     }
 
-    public Map<String, Object> getPlayUrl(Integer siteId, Integer id, String path, boolean getSub, boolean sp) {
+    public Map<String, Object> getPlayUrl(Integer siteId, Integer id, String path, boolean getSub, String client) {
         Meta meta = metaRepository.findById(id).orElseThrow(NotFoundException::new);
         log.debug("getPlayUrl: {} {}", siteId, id);
-        return getPlayUrl(siteId, meta.getPath() + path, getSub, sp);
+        return getPlayUrl(siteId, meta.getPath() + path, getSub, client);
     }
 
     private String findBestSubtitle(List<String> subtitles, String name) {
@@ -1325,7 +1296,7 @@ public class TvBoxService {
         try {
             if (movie.getVod_pic() != null && !movie.getVod_pic().isEmpty()) {
                 String cover = ServletUriComponentsBuilder.fromCurrentRequest()
-                        .scheme(appProperties.isEnableHttps() ? "https" : "http")
+                        .scheme(appProperties.isEnableHttps() ? "https" : "http") // nginx https
                         .replacePath("/images")
                         .replaceQuery("url=" + movie.getVod_pic())
                         .build()
@@ -1342,7 +1313,7 @@ public class TvBoxService {
         try {
             if (movie.getCover() != null && !movie.getCover().isEmpty() && !movie.getCover().contains("/images")) {
                 String cover = ServletUriComponentsBuilder.fromCurrentRequest()
-                        .scheme(appProperties.isEnableHttps() ? "https" : "http")
+                        .scheme(appProperties.isEnableHttps() ? "https" : "http") // nginx https
                         .replacePath("/images")
                         .replaceQuery("url=" + movie.getCover())
                         .build()
@@ -1440,18 +1411,37 @@ public class TvBoxService {
         if (url.startsWith("//")) {
             url = "http:" + url;
         }
-        if (url.startsWith("http://localhost/p/")) {
+        if (url.startsWith("http://localhost/p/") || url.startsWith("http://localhost/d/")) {
             String proxy = ServletUriComponentsBuilder.fromCurrentRequest()
-                    .scheme(appProperties.isEnableHttps() ? "https" : "http")
                     .port(appProperties.isHostmode() ? "5234" : environment.getProperty("ALIST_PORT", "5344"))
-                    .replacePath("/p")
+                    .replacePath("/d")
                     .replaceQuery("")
                     .build()
                     .toUriString();
+            url = url.replace("http://localhost/d", proxy);
             url = url.replace("http://localhost/p", proxy);
             log.debug("{}", url);
         }
         return url;
+    }
+
+    private String buildUrl(Site site, String path, String sign) {
+        if (site.getUrl().contains("//localhost")) {
+            return ServletUriComponentsBuilder.fromCurrentRequest()
+                    .port(appProperties.isHostmode() ? "5234" : environment.getProperty("ALIST_PORT", "5344"))
+                    .replacePath("/d" + path)
+                    .replaceQuery("sign=" + sign)
+                    .build()
+                    .toUri()
+                    .toASCIIString();
+        } else {
+            return UriComponentsBuilder.fromHttpUrl(site.getUrl())
+                    .replacePath("/d" + path)
+                    .replaceQuery("sign=" + sign)
+                    .build()
+                    .toUri()
+                    .toASCIIString();
+        }
     }
 
     private String encodeUrl(String url) {
