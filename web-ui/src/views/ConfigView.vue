@@ -135,7 +135,7 @@
               />
             </el-form-item>
           </el-form>
-          <div>本地版本：{{ movieVersion }}</div>
+          <div>本地版本：<a href="/#/meta">{{ movieVersion }}</a></div>
           <div v-if="movieRemoteVersion&&movieRemoteVersion>movieVersion">
             最新版本：{{
               movieRemoteVersion
@@ -277,12 +277,12 @@ const formatTime = (value: string | number) => {
 
 const updateToken = () => {
   if (form.value.enabledToken) {
-    axios.post('/token', {token: form.value.token}).then(({data}) => {
+    axios.post('/api/token', {token: form.value.token}).then(({data}) => {
       form.value.token = data
       ElMessage.success('成功开启安全订阅')
     })
   } else {
-    axios.delete('/token').then(() => {
+    axios.delete('/api/token').then(() => {
       form.value.token = ''
       ElMessage.info('成功关闭安全订阅')
     })
