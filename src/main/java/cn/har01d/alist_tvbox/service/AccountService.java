@@ -423,6 +423,8 @@ public class AccountService {
         headers.put(HttpHeaders.REFERER, List.of("https://xhofe.top/"));
         Map<String, String> body = new HashMap<>();
         body.put(REFRESH_TOKEN, token);
+        body.put("client_id", settingRepository.findById("open_api_client_id").map(Setting::getValue).orElse(""));
+        body.put("client_secret", settingRepository.findById("open_api_client_secret").map(Setting::getValue).orElse(""));
         body.put("grant_type", REFRESH_TOKEN);
         log.debug("body: {}", body);
         HttpEntity<Map<String, String>> entity = new HttpEntity<>(body, headers);
@@ -634,8 +636,13 @@ public class AccountService {
         HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
         ResponseEntity<CheckinResponse> response = restTemplate.exchange("https://member.aliyundrive.com/v2/activity/sign_in_list", HttpMethod.POST, entity, CheckinResponse.class);
 
+        log.debug("sign_in_list: {}", response.getBody());
         List<CheckinLog> list = new ArrayList<>();
         CheckinResult result = response.getBody().getResult();
+        if (result.getSignInCount() != account.getCheckinDays()) {
+            account.setCheckinDays(result.getSignInCount());
+            accountRepository.save(account);
+        }
         LocalDate date = LocalDate.now();
         for (Map<String, Object> signInLog : result.getSignInInfos()) {
             date = date.withDayOfMonth(Integer.parseInt(signInLog.get("day").toString()));
@@ -784,9 +791,10 @@ public class AccountService {
     private void updateTokenToAList(Account account) {
         try {
             String token = login();
-            updateTokenToAList("RefreshToken-" + account.getId(), account.getRefreshToken(), account.getRefreshTokenTime(), token);
-            updateTokenToAList("RefreshTokenOpen-" + account.getId(), account.getOpenToken(), account.getOpenTokenTime(), token);
-            updateTokenToAList("AccessTokenOpen-" + account.getId(), account.getOpenAccessToken(), account.getOpenAccessTokenTime(), token);
+            updateTokenToAList(account.getId(), "RefreshToken-" + account.getId(), account.getRefreshToken(), account.getRefreshTokenTime(), token);
+            updateTokenToAList(account.getId(), "AccessToken-" + account.getId(), "", null, token);
+            updateTokenToAList(account.getId(), "RefreshTokenOpen-" + account.getId(), account.getOpenToken(), account.getOpenTokenTime(), token);
+            updateTokenToAList(account.getId(), "AccessTokenOpen-" + account.getId(), account.getOpenAccessToken(), account.getOpenAccessTokenTime(), token);
         } catch (Exception e) {
             log.warn("", e);
         }
@@ -841,6 +849,7 @@ public class AccountService {
         }
 
         if (tokenChanged && account.isMaster()) {
+            account.setOpenAccessToken("");
             log.info("sync tokens for account {}", account);
             updateTokenToAList(account);
         }
@@ -973,10 +982,7 @@ public class AccountService {
         }
     }
 
-    private void updateTokenToAList(String key, String value, Instant time, String token) {
-        if (StringUtils.isBlank(value)) {
-            return;
-        }
+    private void updateTokenToAList(Integer accountId, String key, String value, Instant time, String token) {
         if (time == null) {
             time = Instant.now();
         }
@@ -985,6 +991,7 @@ public class AccountService {
         Map<String, Object> body = new HashMap<>();
         body.put("key", key);
         body.put("value", value);
+        body.put("accountId", accountId);
         body.put("modified", time.atOffset(ZONE_OFFSET).toString());
         log.debug("updateTokenToAList: {}", body);
         HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
@@ -1019,7 +1026,7 @@ public class AccountService {
 
     private int syncs = 0;
 
-    @Scheduled(initialDelay = 150_000, fixedDelay = 300_000)
+    @Scheduled(initialDelay = 200_000, fixedDelay = 300_000)
     public void syncTokens() {
         if (syncs > 1 && syncs % 12 != 0) {
             syncs++;
@@ -1061,7 +1068,7 @@ public class AccountService {
                 updateTokenToAList(account);
             }
 
-            log.info("{} token time: {} {} {}", account.getId(), account.getRefreshTokenTime(), account.getOpenTokenTime(), account.getOpenAccessTokenTime());
+            log.info("account {} token time: {} {} {}", account.getId(), account.getRefreshTokenTime(), account.getOpenTokenTime(), account.getOpenAccessTokenTime());
         }
         accountRepository.saveAll(accounts);
     }

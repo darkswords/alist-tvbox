@@ -64,7 +64,7 @@
                 active-text="开启"
                 inactive-text="关闭"
               />
-              <span class="hint">建议外网开启</span>
+              <span class="hint">建议外网开启，多个安全Token，逗号分割。</span>
             </el-form-item>
             <el-form-item prop="token" label="安全Token" v-if="form.enabledToken">
               <el-input v-model="form.token" type="password" show-password/>
@@ -149,19 +149,25 @@
       <el-form label-width="180px">
         <el-form-item label="开放Token认证URL">
           <el-select v-model="openTokenUrl" class="m-2" placeholder="Select">
-            <el-option
-              v-for="item in options"
-              :key="item.value"
-              :label="item.label"
-              :value="item.value"
-            />
+            <el-option-group
+              v-for="group in options"
+              :key="group.label"
+              :label="group.label"
+            >
+              <el-option
+                v-for="item in group.options"
+                :key="item.value"
+                :label="item.label"
+                :value="item.value"
+              />
+            </el-option-group>
           </el-select>
           <el-input v-model="openTokenUrl"/>
         </el-form-item>
-        <el-form-item label="Client ID">
+        <el-form-item label="APP ID">
           <el-input v-model="apiClientId" type="text"/>
         </el-form-item>
-        <el-form-item label="Client Secret">
+        <el-form-item label="APP Secret">
           <el-input v-model="apiClientSecret" type="password" show-password/>
         </el-form-item>
         <el-form-item>
@@ -204,7 +210,7 @@
           <el-button @click="resetAListToken">重置AList认证Token</el-button>
         </el-form-item>
         <el-form-item>
-          <el-button @click="exportDatabase">导出数据库</el-button>
+          <el-button @click="exportDatabase">备份数据库</el-button>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -237,11 +243,25 @@ const increase = () => {
 }
 
 const options = [
-  {label: 'api.xhofe.top', value: 'https://api.xhofe.top/alist/ali_open/token'},
-  {label: 'api-cf.nn.ci', value: 'https://api-cf.nn.ci/alist/ali_open/token'},
-  {label: 'api.nn.ci ✈', value: 'https://api.nn.ci/alist/ali_open/token'},
-  {label: 'openapi.alipan.com', value: 'https://openapi.alipan.com/oauth/access_token'},
-  {label: 'aliyundrive-webdav', value: 'https://aliyundrive-oauth.messense.me/oauth/access_token'},
+  {
+    label: 'AList',
+    options: [
+      {label: 'api.xhofe.top', value: 'https://api.xhofe.top/alist/ali_open/token'},
+      {label: 'api.nn.ci ✈', value: 'https://api.nn.ci/alist/ali_open/token'},
+    ]
+  },
+  {
+    label: 'webdav',
+    options: [
+      {label: 'aliyundrive-webdav', value: 'https://aliyundrive-oauth.messense.me/oauth/access_token'},
+    ]
+  },
+  {
+    label: '阿里',
+    options: [
+      {label: 'openapi.alipan.com', value: 'https://openapi.alipan.com/oauth/access_token'},
+    ]
+  }
 ]
 const tooltip = 'sudo bash -c "$(curl -fsSL https://d.har01d.cn/update_xiaoya.sh)"'
 const aListStarted = ref(false)

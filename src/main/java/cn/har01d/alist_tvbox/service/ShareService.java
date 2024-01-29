@@ -1,8 +1,8 @@
 package cn.har01d.alist_tvbox.service;
 
 import cn.har01d.alist_tvbox.config.AppProperties;
-import cn.har01d.alist_tvbox.dto.SharesDto;
 import cn.har01d.alist_tvbox.dto.OpenApiDto;
+import cn.har01d.alist_tvbox.dto.SharesDto;
 import cn.har01d.alist_tvbox.entity.AListAlias;
 import cn.har01d.alist_tvbox.entity.AListAliasRepository;
 import cn.har01d.alist_tvbox.entity.Account;
@@ -183,6 +183,10 @@ public class ShareService {
     }
 
     private void loadOpenTokenUrl() {
+        if (settingRepository.existsById(OPEN_TOKEN_URL)) {
+            return;
+        }
+
         try {
             String url = null;
             try {
@@ -236,11 +240,11 @@ public class ShareService {
         }
 
         settingRepository.save(new Setting(OPEN_TOKEN_URL, url));
-        settingRepository.save(new Setting("open_api_client_id", dto.getClientId()));
-        settingRepository.save(new Setting("open_api_client_secret", dto.getClientSecret()));
+        settingRepository.save(new Setting("open_api_client_id", dto.getClientId().trim()));
+        settingRepository.save(new Setting("open_api_client_secret", dto.getClientSecret().trim()));
         Utils.executeUpdate("UPDATE x_setting_items SET value = '" + url + "' WHERE key = 'open_token_url'");
-        Utils.executeUpdate("UPDATE x_setting_items SET value = '" + dto.getClientId() + "' WHERE key = 'open_api_client_id'");
-        Utils.executeUpdate("UPDATE x_setting_items SET value = '" + dto.getClientSecret() + "' WHERE key = 'open_api_client_secret'");
+        Utils.executeUpdate("UPDATE x_setting_items SET value = '" + dto.getClientId().trim() + "' WHERE key = 'open_api_client_id'");
+        Utils.executeUpdate("UPDATE x_setting_items SET value = '" + dto.getClientSecret().trim() + "' WHERE key = 'open_api_client_secret'");
     }
 
     private List<Share> loadSharesFromFile() {
@@ -393,6 +397,10 @@ public class ShareService {
                         String sql = "INSERT INTO x_storages VALUES(%d,'%s',0,'Quark',30,'work','{\"cookie\":\"%s\",\"root_folder_id\":\"%s\",\"order_by\":\"name\",\"order_direction\":\"ASC\"}','','2023-06-15 12:00:00+00:00',0,'name','ASC','',0,'native_proxy','');";
                         int count = Utils.executeUpdate(String.format(sql, share.getId(), getMountPath(share), share.getCookie(), share.getFolderId()));
                         log.info("insert Share {} {}: {}, result: {}", share.getId(), share.getShareId(), getMountPath(share), count);
+                    } else if (share.getType() == 3) {
+                        String sql = "INSERT INTO x_storages VALUES(%d,'%s',0,'115 Cloud',30,'work','{\"cookie\":\"%s\",\"qrcode_token\":\"%s\",\"root_folder_id\":\"%s\",\"page_size\":56}','','2023-06-15 12:00:00+00:00',0,'name','ASC','',0,'302_redirect','');";
+                        int count = Utils.executeUpdate(String.format(sql, share.getId(), getMountPath(share), share.getCookie(), share.getPassword(), share.getFolderId()));
+                        log.info("insert Share {} {}: {}, result: {}", share.getId(), share.getShareId(), getMountPath(share), count);
                     } else if (share.getType() == 4) {
                         String sql = "INSERT INTO x_storages VALUES(%d,'%s',0,'Local',30,'work','{\"root_folder_path\":\"%s\",\"thumbnail\":false,\"thumb_cache_folder\":\"\",\"show_hidden\":true,\"mkdir_perm\":\"777\"}','','2023-06-15 12:00:00+00:00',0,'name','ASC','',0,'native_proxy','');";
                         int count = Utils.executeUpdate(String.format(sql, share.getId(), share.getPath(), share.getFolderId()));
@@ -438,6 +446,8 @@ public class ShareService {
             return "/\uD83D\uDD78️我的PikPak分享/" + path;
         } else if (share.getType() == 2) {
             return "/\uD83C\uDF1E我的夸克网盘/" + path;
+        } else if (share.getType() == 3) {
+            return "/115网盘/" + path;
         }
         return path;
     }
@@ -524,6 +534,10 @@ public class ShareService {
                 String sql = "INSERT INTO x_storages VALUES(%d,'%s',0,'Quark',30,'work','{\"cookie\":\"%s\",\"root_folder_id\":\"%s\",\"order_by\":\"name\",\"order_direction\":\"ASC\"}','','2023-06-15 12:00:00+00:00',1,'name','ASC','',0,'native_proxy','',0);";
                 int count = Utils.executeUpdate(String.format(sql, share.getId(), getMountPath(share), share.getCookie(), share.getFolderId()));
                 log.info("insert Share {} {}: {}, result: {}", share.getId(), share.getShareId(), getMountPath(share), count);
+            } else if (share.getType() == 3) {
+                String sql = "INSERT INTO x_storages VALUES(%d,'%s',0,'115 Cloud',30,'work','{\"cookie\":\"%s\",\"qrcode_token\":\"%s\",\"root_folder_id\":\"%s\",\"page_size\":56}','','2023-06-15 12:00:00+00:00',1,'name','ASC','',0,'302_redirect','',0);";
+                int count = Utils.executeUpdate(String.format(sql, share.getId(), getMountPath(share), share.getCookie(), share.getPassword(), share.getFolderId()));
+                log.info("insert Share {} {}: {}, result: {}", share.getId(), share.getShareId(), getMountPath(share), count);
             } else if (share.getType() == 4) {
                 String sql = "INSERT INTO x_storages VALUES(%d,'%s',0,'Local',30,'work','{\"root_folder_path\":\"%s\",\"thumbnail\":false,\"thumb_cache_folder\":\"\",\"show_hidden\":true,\"mkdir_perm\":\"777\"}','','2023-06-15 12:00:00+00:00',1,'name','ASC','',0,'native_proxy','',0);";
                 int count = Utils.executeUpdate(String.format(sql, share.getId(), share.getPath(), share.getFolderId()));
@@ -565,6 +579,10 @@ public class ShareService {
                 String sql = "INSERT INTO x_storages VALUES(%d,'%s',0,'Quark',30,'work','{\"cookie\":\"%s\",\"root_folder_id\":\"%s\",\"order_by\":\"name\",\"order_direction\":\"ASC\"}','','2023-06-15 12:00:00+00:00',1,'name','ASC','',0,'native_proxy','',0);";
                 int count = Utils.executeUpdate(String.format(sql, share.getId(), getMountPath(share), share.getCookie(), share.getFolderId()));
                 log.info("insert Share {} {}: {}, result: {}", share.getId(), share.getShareId(), getMountPath(share), count);
+            } else if (share.getType() == 3) {
+                String sql = "INSERT INTO x_storages VALUES(%d,'%s',0,'115 Cloud',30,'work','{\"cookie\":\"%s\",\"qrcode_token\":\"%s\",\"root_folder_id\":\"%s\",\"page_size\":56}','','2023-06-15 12:00:00+00:00',1,'name','ASC','',0,'302_redirect','',0);";
+                int count = Utils.executeUpdate(String.format(sql, share.getId(), getMountPath(share), share.getCookie(), share.getPassword(), share.getFolderId()));
+                log.info("insert Share {} {}: {}, result: {}", share.getId(), share.getShareId(), getMountPath(share), count);
             } else if (share.getType() == 4) {
                 String sql = "INSERT INTO x_storages VALUES(%d,'%s',0,'Local',30,'work','{\"root_folder_path\":\"%s\",\"thumbnail\":false,\"thumb_cache_folder\":\"\",\"show_hidden\":true,\"mkdir_perm\":\"777\"}','','2023-06-15 12:00:00+00:00',1,'name','ASC','',0,'native_proxy','',0);";
                 int count = Utils.executeUpdate(String.format(sql, share.getId(), share.getPath(), share.getFolderId()));
@@ -591,6 +609,10 @@ public class ShareService {
             if (StringUtils.isBlank(share.getCookie())) {
                 throw new BadRequestException("Cookie不能为空");
             }
+        } else if (share.getType() == 3) {
+            if (StringUtils.isBlank(share.getCookie()) && StringUtils.isBlank(share.getPassword())) {
+                throw new BadRequestException("Cookie和Token至少填写一个");
+            }
         } else if (share.getType() != 4) {
             if (StringUtils.isBlank(share.getShareId())) {
                 throw new BadRequestException("分享ID不能为空");
@@ -598,7 +620,7 @@ public class ShareService {
         }
 
         if (StringUtils.isBlank(share.getFolderId())) {
-            if (share.getType() == 2) {
+            if (share.getType() == 2 || share.getType() == 3) {
                 share.setFolderId("0");
             } else if (share.getType() == 0) {
                 share.setFolderId("root");
@@ -670,28 +692,6 @@ public class ShareService {
 
     private static final String TACIT_URL = "https://ycyup.cn/tacit0924";
 
-    private Share loadTacit0924() {
-        if (!environment.matchesProfiles("xiaoya")) {
-            return null;
-        }
-
-        try {
-            String link = restTemplate1.getForObject(TACIT_URL, String.class);
-            log.info("Tacit0924 link: {}", link);
-            String folder = getFolderId(link);
-            Share share = new Share();
-            share.setType(0);
-            share.setId(7000);
-            share.setShareId(link);
-            share.setFolderId(folder);
-            share.setPath("/\uD83C\uDE34我的阿里分享/Tacit0924");
-            return shareRepository.save(share);
-        } catch (Exception e) {
-            log.warn("", e);
-        }
-        return null;
-    }
-
     private Share loadLatestShare() {
         if (!environment.matchesProfiles("xiaoya")) {
             return null;
@@ -713,6 +713,33 @@ public class ShareService {
         return null;
     }
 
+    private Share loadTacit0924() {
+        if (!environment.matchesProfiles("xiaoya")) {
+            return null;
+        }
+
+        try {
+            String link = restTemplate1.getForObject(TACIT_URL, String.class);
+            String[] parts = link.split(":");
+            link = parts[0];
+            String code = parts.length == 1 ? "" : parts[1];
+            log.info("Tacit0924 link: {} {}", link, code);
+            String shareToken = getShareToken(link, code);
+            String folder = getFolderId(link, shareToken);
+            Share share = new Share();
+            share.setType(0);
+            share.setId(7000);
+            share.setShareId(link);
+            share.setPassword(code);
+            share.setFolderId(folder);
+            share.setPath("/\uD83C\uDE34我的阿里分享/Tacit0924");
+            return shareRepository.save(share);
+        } catch (Exception e) {
+            log.warn("", e);
+        }
+        return null;
+    }
+
     @Scheduled(cron = "0 20 0,9-23 * * ?")
     public void getTacit0924() {
         if (!environment.matchesProfiles("xiaoya")) {
@@ -721,11 +748,14 @@ public class ShareService {
 
         try {
             String link = restTemplate1.getForObject(TACIT_URL, String.class);
-            log.info("Tacit0924 link: {}", link);
+            String[] parts = link.split(":");
+            link = parts[0];
+            String code = parts.length == 1 ? "" : parts[1];
+            log.info("Tacit0924 link: {} {}", link, code);
             String shareId = shareRepository.findById(7000).map(Share::getShareId).orElse("");
             if (!shareId.equals(link)) {
                 // 验证远程链接有效性
-                String shareToken = getShareToken(link);
+                String shareToken = getShareToken(link, code);
                 if (StringUtils.isBlank(shareToken)) {
                     return;
                 }
@@ -734,6 +764,7 @@ public class ShareService {
                 share.setType(0);
                 share.setId(7000);
                 share.setShareId(link);
+                share.setPassword(code);
                 share.setFolderId(folder);
                 share.setPath("/\uD83C\uDE34我的阿里分享/Tacit0924");
                 update(7000, share);
@@ -741,16 +772,6 @@ public class ShareService {
         } catch (Exception e) {
             log.warn("", e);
         }
-    }
-
-    private String getFolderId(String shareId) {
-        try {
-            String shareToken = getShareToken(shareId);
-            return getFolderId(shareId, shareToken);
-        } catch (Exception e) {
-            log.warn("", e);
-        }
-        return "root";
     }
 
     private String getFolderId(String shareId, String shareToken) {
@@ -763,13 +784,13 @@ public class ShareService {
         return "root";
     }
 
-    private String getShareToken(String shareId) {
+    private String getShareToken(String shareId, String code) {
         HttpHeaders headers = new HttpHeaders();
         headers.put("X-Canary", List.of("client=web,app=share,version=v2.3.1"));
         headers.put("X-Device-Id", List.of("92ac5d71-3747-4a37-8bfc-a02155edca4a"));
         Map<String, Object> body = new HashMap<>();
         body.put("share_id", shareId);
-        body.put("share_pwd", "");
+        body.put("share_pwd", code);
         HttpEntity<Map> entity = new HttpEntity<>(body, headers);
         ResponseEntity<Map> response = restTemplate1.exchange("https://api.aliyundrive.com/v2/share_link/get_share_token", HttpMethod.POST, entity, Map.class);
         log.debug("getShareToken {}", response.getBody());

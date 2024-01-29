@@ -18,7 +18,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 public class Main {
-    public static void main(String[] args) throws IOException {
+    public static void main(String[] args) throws IOException, ClassNotFoundException {
         Set<Class> classes = findAllClassesUsingClassLoader("cn.har01d.alist_tvbox.dto");
         classes.addAll(findAllClassesUsingClassLoader("cn.har01d.alist_tvbox.dto.bili"));
         classes.addAll(findAllClassesUsingClassLoader("cn.har01d.alist_tvbox.tvbox"));

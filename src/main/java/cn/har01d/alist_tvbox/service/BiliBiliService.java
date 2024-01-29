@@ -62,6 +62,10 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
+import okhttp3.Call;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.Response;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.http.HttpEntity;
@@ -96,6 +100,7 @@ import static cn.har01d.alist_tvbox.util.Constants.BILIBILI_COOKIE;
 import static cn.har01d.alist_tvbox.util.Constants.BILI_BILI;
 import static cn.har01d.alist_tvbox.util.Constants.FILE;
 import static cn.har01d.alist_tvbox.util.Constants.LIST_PIC;
+import static cn.har01d.alist_tvbox.util.Constants.USER_AGENT;
 
 @Slf4j
 @Service
@@ -266,6 +271,7 @@ public class BiliBiliService {
     private final RestTemplate restTemplate;
     private final RestTemplate restTemplate1;
     private final ObjectMapper objectMapper;
+    private final OkHttpClient client = new OkHttpClient();
     private MovieDetail searchPlaylist;
     private String keyword = "";
     private int searchPage;
@@ -701,31 +707,47 @@ public class BiliBiliService {
         return hotResponse.getData();
     }
 
-    public MovieList getUpMedia(String mid, String sort, int page) {
+    private <T> T getJson(String url, Class<T> clazz) throws IOException {
+        Request request = new Request.Builder()
+                .url(url)
+                .addHeader("Accept", "*/*")
+                .addHeader("User-Agent", USER_AGENT)
+                .build();
+
+        Call call = client.newCall(request);
+        Response response = call.execute();
+        String json = response.body().string();
+        response.close();
+
+        return objectMapper.readValue(json, clazz);
+    }
+
+    public MovieList getUpMedia(String mid, String sort, int page) throws IOException {
         if (StringUtils.isBlank(sort)) {
             sort = "pubdate";
         }
         Map<String, Object> map = new HashMap<>();
         map.put("mid", mid);
-        map.put("ps", "30");
-        map.put("tid", "0");
+        map.put("pn", page);
+        map.put("ps", 30);
+        map.put("tid", 0);
         map.put("keyword", "");
         map.put("order", sort);
         map.put("platform", "web");
+        map.put("web_location", "1550101");
         map.put("order_avoided", "true");
         map.put("dm_img_list", "[]");
-        map.put("dm_img_str", "bm8gd2ViZ2");
-        map.put("dm_cover_img_str", "bm8gd2ViZ2");
-        map.put("pn", String.valueOf(page));
+        map.put("dm_img_str", "V2ViR0wgMS4wIChPcGVuR0wgRVMgMi4wIENocm9taXVtKQ");
+        map.put("dm_cover_img_str", "QU5HTEUgKE5WSURJQSBDb3Jwb3JhdGlvbiwgTlZJRElBIEdlRm9yY2UgUlRYIDQwNjAgVGkvUENJZS9TU0UyLCBPcGVuR0wgNC41LjApR29vZ2xlIEluYy4gKE5WSURJQSBDb3Jwb3JhdGlvbi");
 
         HttpEntity<Void> entity = buildHttpEntity(null);
         getKeys(entity);
         String url = NEW_SEARCH_API + "?" + Utils.encryptWbi(map, imgKey, subKey);
         log.debug("getUpMedia: {}", url);
 
-        ResponseEntity<BiliBiliSearchInfoResponse> response = restTemplate.exchange(url, HttpMethod.GET, entity, BiliBiliSearchInfoResponse.class);
-        log.debug("{}", response.getBody());
-        BiliBiliSearchInfo searchInfo = response.getBody().getData();
+        BiliBiliSearchInfoResponse response = getJson(url, BiliBiliSearchInfoResponse.class);
+        log.debug("{}", response);
+        BiliBiliSearchInfo searchInfo = response.getData();
         List<MovieDetail> list = new ArrayList<>();
         MovieList result = new MovieList();
         for (BiliBiliSearchInfo.Video info : searchInfo.getList().getVlist()) {
@@ -759,7 +781,7 @@ public class BiliBiliService {
         return result;
     }
 
-    public MovieList getUpPlaylist(String tid) {
+    public MovieList getUpPlaylist(String tid) throws IOException {
         String[] parts = tid.split("\\$");
         String id = parts[1];
         String sort = "new";
@@ -772,26 +794,28 @@ public class BiliBiliService {
         }
         Map<String, Object> map = new HashMap<>();
         map.put("mid", id);
-        map.put("ps", "30");
-        map.put("tid", "0");
+        map.put("ps", 30);
+        map.put("pn", page);
+        map.put("tid", 0);
         map.put("keyword", "");
         map.put("order", sort);
         map.put("platform", "web");
+        map.put("web_location", "1550101");
         map.put("order_avoided", "true");
         map.put("dm_img_list", "[]");
-        map.put("dm_img_str", "bm8gd2ViZ2");
-        map.put("dm_cover_img_str", "bm8gd2ViZ2");
-        map.put("pn", page);
+        map.put("dm_img_str", "V2ViR0wgMS4wIChPcGVuR0wgRVMgMi4wIENocm9taXVtKQ");
+        map.put("dm_cover_img_str", "QU5HTEUgKE5WSURJQSBDb3Jwb3JhdGlvbiwgTlZJRElBIEdlRm9yY2UgUlRYIDQwNjAgVGkvUENJZS9TU0UyLCBPcGVuR0wgNC41LjApR29vZ2xlIEluYy4gKE5WSURJQSBDb3Jwb3JhdGlvbi");
 
         HttpEntity<Void> entity = buildHttpEntity(null);
         getKeys(entity);
         String url = NEW_SEARCH_API + "?" + Utils.encryptWbi(map, imgKey, subKey);
-        log.debug("getUpMedia: {}", url);
+        log.debug("getUpPlaylist: {}", url);
 
-        ResponseEntity<BiliBiliSearchInfoResponse> response = restTemplate.exchange(url, HttpMethod.GET, entity, BiliBiliSearchInfoResponse.class);
-        log.debug("{}", response.getBody());
+
+        BiliBiliSearchInfoResponse response = getJson(url, BiliBiliSearchInfoResponse.class);
+        log.debug("{}", response);
         List<BiliBiliSearchInfo.Video> list = new ArrayList<>();
-        List<BiliBiliSearchInfo.Video> videos = response.getBody().getData().getList().getVlist();
+        List<BiliBiliSearchInfo.Video> videos = response.getData().getList().getVlist();
         list.addAll(videos);
 
         long seconds = list.stream().map(BiliBiliSearchInfo.Video::getLength).mapToLong(Utils::durationToSeconds).sum();
@@ -1228,20 +1252,19 @@ public class BiliBiliService {
 
     private <T> HttpEntity<T> buildHttpEntity(T data, boolean urlencoded, Map<String, String> customHeaders) {
         HttpHeaders headers = new HttpHeaders();
-        headers.add(HttpHeaders.ACCEPT_LANGUAGE, "en-US,en;q=0.9,zh-CN;q=0.8,zh;q=0.7,ja;q=0.6,zh-TW;q=0.5");
-        headers.add(HttpHeaders.ACCEPT, "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7");
-        headers.add(HttpHeaders.USER_AGENT, Constants.USER_AGENT);
+        headers.set(HttpHeaders.ACCEPT_LANGUAGE, "en-US,en;q=0.9,zh-CN;q=0.8,zh;q=0.7,ja;q=0.6,zh-TW;q=0.5");
+        headers.set(HttpHeaders.ACCEPT, "*/*");
         if (urlencoded) {
             headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
         }
         for (Map.Entry<String, String> entry : customHeaders.entrySet()) {
-            headers.add(entry.getKey(), entry.getValue());
+            headers.set(entry.getKey(), entry.getValue());
         }
         String cookie = settingRepository.findById(BILIBILI_COOKIE).map(Setting::getValue).orElse("");
         if (StringUtils.isBlank(cookie) || "666".equals(cookie)) {
             cookie = getCookie(cookie);
         }
-        headers.add(HttpHeaders.COOKIE, cookie.trim());
+        headers.set(HttpHeaders.COOKIE, cookie.trim());
         return new HttpEntity<>(data, headers);
     }
 
@@ -1413,9 +1436,9 @@ public class BiliBiliService {
                     return cookie;
                 }
 
-                String json = restTemplate1.getForObject("https://agit.ai/fantaiying/fty/raw/branch/master/json/bilibili.json", String.class);
-                Map map = objectMapper.readValue(json, Map.class);
-                cookie = (String) map.getOrDefault("cookie", "");
+                cookie = restTemplate1.getForObject("https://agit.ai/30215429/TVBox/raw/branch/master/bilibili/cookie.txt", String.class);
+//                Map map = objectMapper.readValue(json, Map.class);
+//                cookie = (String) map.getOrDefault("cookie", "");
                 log.info("{}", cookie);
                 BiliBiliUtils.setDefaultCookie(cookie);
                 return cookie;
@@ -1471,7 +1494,7 @@ public class BiliBiliService {
         return bvid;
     }
 
-    public MovieList getMovieList(String tid, FilterDto filter, int page) {
+    public MovieList getMovieList(String tid, FilterDto filter, int page) throws IOException {
         if (tid.equals("ups")) {
             String id = filter.getType();
             if (StringUtils.isBlank(id)) {
@@ -1790,8 +1813,9 @@ public class BiliBiliService {
         if (channelOffsets.get(page - 1) == null) {
             return result;
         }
+        HttpEntity<Void> entity = buildHttpEntity(null);
         String url = String.format(CHANNEL_API, id, sort, channelOffsets.get(page - 1));
-        ResponseEntity<BiliBiliChannelResponse> response = restTemplate1.getForEntity(url, BiliBiliChannelResponse.class);
+        ResponseEntity<BiliBiliChannelResponse> response = restTemplate1.exchange(url, HttpMethod.GET, entity, BiliBiliChannelResponse.class);
         log.debug("getChannel {} {}", url, response.getBody());
 
         List<MovieDetail> list = new ArrayList<>();
@@ -1841,8 +1865,9 @@ public class BiliBiliService {
             page = Integer.parseInt(parts[3]);
         }
 
+        HttpEntity<Void> entity = buildHttpEntity(null);
         String url = String.format(CHANNEL_API, id, sort, channelOffsets.get(page - 1));
-        ResponseEntity<BiliBiliChannelResponse> response = restTemplate1.getForEntity(url, BiliBiliChannelResponse.class);
+        ResponseEntity<BiliBiliChannelResponse> response = restTemplate1.exchange(url, HttpMethod.GET, entity, BiliBiliChannelResponse.class);
         log.debug("getChannelPlaylist: url {}", url, response.getBody());
         List<BiliBiliChannelItem> list = new ArrayList<>();
         List<BiliBiliChannelItem> videos = response.getBody().getData().getList();
@@ -1972,7 +1997,9 @@ public class BiliBiliService {
         }
 
         String url = "https://api.bilibili.com/pgc/activity/score/task/sign";
-        HttpEntity<Void> entity = buildHttpEntity(null);
+        Map<String, String> headers = new HashMap<>();
+        headers.put(HttpHeaders.REFERER, "https://www.bilibili.com");
+        HttpEntity<Void> entity = buildHttpEntity(null, headers);
         ResponseEntity<BiliBiliInfoResponse> response = restTemplate.exchange(url, HttpMethod.POST, entity, BiliBiliInfoResponse.class);
         if (response.getBody() != null && response.getBody().getCode() == 0) {
             log.info("B站用户签到成功");

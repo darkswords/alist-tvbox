@@ -8,6 +8,7 @@ import cn.har01d.alist_tvbox.entity.Site;
 import cn.har01d.alist_tvbox.entity.SiteRepository;
 import cn.har01d.alist_tvbox.entity.Subscription;
 import cn.har01d.alist_tvbox.entity.SubscriptionRepository;
+import cn.har01d.alist_tvbox.exception.BadRequestException;
 import cn.har01d.alist_tvbox.exception.NotFoundException;
 import cn.har01d.alist_tvbox.util.Constants;
 import cn.har01d.alist_tvbox.util.IdUtils;
@@ -34,6 +35,8 @@ import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.security.spec.AlgorithmParameterSpec;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -66,7 +69,7 @@ public class SubscriptionService {
     private final SiteRepository siteRepository;
     private final AListLocalService aListLocalService;
 
-    private String token = "";
+    private String tokens = "";
 
     public SubscriptionService(Environment environment,
                                AppProperties appProperties,
@@ -93,7 +96,7 @@ public class SubscriptionService {
 
     @PostConstruct
     public void init() {
-        token = settingRepository.findById(TOKEN)
+        tokens = settingRepository.findById(TOKEN)
                 .map(Setting::getValue)
                 .orElse("");
 
@@ -163,35 +166,36 @@ public class SubscriptionService {
         }
     }
 
-    public String getToken(String apiKey) {
-        String key = settingRepository.findById("api_key").map(Setting::getValue).orElse("");
-        if (key.equals(apiKey)) {
-            return token;
-        } else {
-            return "";
+    public void checkToken(String rawToken) {
+        for (String t : tokens.split(",")) {
+            if (t.equals(rawToken)) {
+                return;
+            }
         }
+
+        throw new BadRequestException();
     }
 
     public String getToken() {
-        return token;
+        return tokens;
     }
 
     public void deleteToken() {
-        token = "";
-        settingRepository.save(new Setting(TOKEN, token));
+        tokens = "";
+        settingRepository.save(new Setting(TOKEN, tokens));
         aListLocalService.updateSetting("sign_all", "false", "bool");
     }
 
     public String createToken(TokenDto dto) {
         if (StringUtils.isBlank(dto.getToken())) {
-            token = IdUtils.generate(8);
+            tokens = IdUtils.generate(8);
         } else {
-            token = dto.getToken();
+            tokens = Arrays.stream(dto.getToken().split(",")).filter(StringUtils::isNotBlank).collect(Collectors.joining(","));
         }
 
-        settingRepository.save(new Setting(TOKEN, token));
-        aListLocalService.updateSetting("sign_all", String.valueOf(StringUtils.isNotBlank(token)), "bool");
-        return token;
+        settingRepository.save(new Setting(TOKEN, tokens));
+        aListLocalService.updateSetting("sign_all", String.valueOf(StringUtils.isNotBlank(tokens)), "bool");
+        return tokens;
     }
 
     public List<String> getProfiles() {
@@ -202,75 +206,30 @@ public class SubscriptionService {
         return subscriptionRepository.findAll();
     }
 
-    public Map<String, Object> open() {
-        Map<String, Object> config = new HashMap<>();
-        Map<String, Object> video = new HashMap<>();
-        Map<String, Object> pan = new HashMap<>();
-        List<Map<String, Object>> sites = new ArrayList<>();
-        List<Map<String, Object>> panSites = new ArrayList<>();
-        video.put("sites", sites);
-        config.put("video", video);
-        pan.put("sites", panSites);
-        config.put("pan", pan);
-        addOpenSite(video);
-        return config;
+    public Map<String, Object> open() throws IOException {
+        String secret = tokens.isEmpty() ? "" : ("/" + tokens.split(",")[0]);
+        Path path = Path.of("/www/cat/config_open.json");
+        String json = Files.readString(path);
+        json = json.replace("VOD_EXT", readHostAddress("/vod1" + secret));
+        json = json.replace("BILIBILI_EXT", readHostAddress("/bilibili" + secret));
+        json = json.replace("ALIST_URL", readAlistAddress());
+        String ali = settingRepository.findById("ali_secret").map(Setting::getValue).orElse("");
+        json = json.replace("ALI_TOKEN", readHostAddress("/ali/token/" + ali));
+        String token = siteRepository.findById(1).map(Site::getToken).orElse("");
+        json = json.replace("ALIST_TOKEN", token);
+        return objectMapper.readValue(json, Map.class);
     }
 
-    private void addOpenSite(Map<String, Object> config) {
-        int id = 0;
-        List<Map<String, Object>> sites = (List<Map<String, Object>>) config.get("sites");
-        try {
-            String key = "Alist";
-            Map<String, Object> site = buildOpenSite("xiaoya", "xiaoya", "小雅AList");
-            sites.removeIf(item -> key.equals(item.get("key")));
-            sites.add(id++, site);
-            log.debug("add AList site: {}", site);
-        } catch (Exception e) {
-            log.warn("", e);
-        }
-
-        try {
-            for (Site site1 : siteRepository.findAll()) {
-                if (site1.isSearchable() && !site1.isDisabled()) {
-                    Map<String, Object> site = buildOpenSite("xiaoya-tvbox", "xiaoya", site1.getName());
-                    sites.add(id++, site);
-                    log.debug("add XiaoYa site: {}", site);
-                    break;
-                }
-            }
-        } catch (Exception e) {
-            log.warn("", e);
-        }
-
-        try {
-            Map<String, Object> site = buildOpenSite("bilibili", "bilibili", "BiliBili");
-            sites.add(id, site);
-            log.debug("add BiliBili site: {}", site);
-        } catch (Exception e) {
-            log.warn("", e);
-        }
-    }
-
-    private Map<String, Object> buildOpenSite(String key, String api, String name) {
-        Map<String, Object> site = new HashMap<>();
-        site.put("key", key);
-        site.put("api", readHostAddress("/tvbox/" + api + ".js"));
-        site.put("name", name);
-        site.put("type", 3);
-        site.put("ext", readHostAddress("/" + api));
-        return site;
-    }
-
-    public Map<String, Object> subscription(String id) {
+    public Map<String, Object> subscription(String token, String id) {
         Subscription subscription = subscriptionRepository.findBySid(id).orElseThrow(NotFoundException::new);
         String apiUrl = subscription.getUrl();
         String override = subscription.getOverride();
         String sort = subscription.getSort();
 
-        return subscription(apiUrl, override, sort);
+        return subscription(token, apiUrl, override, sort);
     }
 
-    public Map<String, Object> subscription(String apiUrl, String override, String sort) {
+    public Map<String, Object> subscription(String token, String apiUrl, String override, String sort) {
         if (apiUrl == null) {
             apiUrl = "";
         }
@@ -291,7 +250,7 @@ public class SubscriptionService {
             config = overrideConfig(config, override);
         }
 
-        addSite(config);
+        addSite(token, config);
 
         // should after overrideConfig
         handleWhitelist(config);
@@ -605,14 +564,14 @@ public class SubscriptionService {
         }
     }
 
-    private void addSite(Map<String, Object> config) {
+    private void addSite(String token, Map<String, Object> config) {
         int id = 0;
         List<Map<String, Object>> sites = (List<Map<String, Object>>) config.get("sites");
 
         try {
             for (Site site1 : siteRepository.findAll()) {
                 if (site1.isSearchable() && !site1.isDisabled()) {
-                    Map<String, Object> site = buildSite("csp_XiaoYa", site1.getName());
+                    Map<String, Object> site = buildSite(token, "csp_XiaoYa", site1.getName());
                     sites.add(id++, site);
                     log.debug("add XiaoYa site: {}", site);
                     break;
@@ -624,7 +583,7 @@ public class SubscriptionService {
 
         try {
             String key = "Alist";
-            Map<String, Object> site = buildSite("csp_AList", "AList");
+            Map<String, Object> site = buildSite(token, "csp_AList", "AList");
             sites.removeIf(item -> key.equals(item.get("key")));
             sites.add(id++, site);
             log.debug("add AList site: {}", site);
@@ -633,7 +592,7 @@ public class SubscriptionService {
         }
 
         try {
-            Map<String, Object> site = buildSite("csp_BiliBili", "BiliBili");
+            Map<String, Object> site = buildSite(token, "csp_BiliBili", "BiliBili");
             sites.add(id, site);
             log.debug("add BiliBili site: {}", site);
         } catch (Exception e) {
@@ -641,7 +600,7 @@ public class SubscriptionService {
         }
     }
 
-    private Map<String, Object> buildSite(String key, String name) throws IOException {
+    private Map<String, Object> buildSite(String token, String key, String name) throws IOException {
         Map<String, Object> site = new HashMap<>();
         String url = readHostAddress("");
         site.put("key", key);
@@ -650,7 +609,7 @@ public class SubscriptionService {
         site.put("type", 3);
         Map<String, String> map = new HashMap<>();
         map.put("api", url);
-        map.put("apiKey", settingRepository.findById("api_key").map(Setting::getValue).orElse(""));
+        map.put("token", token);
         String ext = objectMapper.writeValueAsString(map).replaceAll("\\s", "");
         ext = Base64.getEncoder().encodeToString(ext.getBytes());
         site.put("ext", ext);
@@ -711,6 +670,15 @@ public class SubscriptionService {
         UriComponents uriComponents = ServletUriComponentsBuilder.fromCurrentRequest()
                 .scheme(appProperties.isEnableHttps() && !Utils.isLocalAddress() ? "https" : "http") // nginx https
                 .replacePath(path)
+                .build();
+        return uriComponents.toUriString();
+    }
+
+    private String readAlistAddress() {
+        UriComponents uriComponents = ServletUriComponentsBuilder.fromCurrentRequest()
+                .scheme(appProperties.isEnableHttps() && !Utils.isLocalAddress() ? "https" : "http") // nginx https
+                .port(appProperties.isHostmode() ? 5234 : 5344)
+                .replacePath("")
                 .build();
         return uriComponents.toUriString();
     }
@@ -820,7 +788,7 @@ public class SubscriptionService {
         return ret;
     }
 
-    public String repository(int id) {
+    public String repository(String token, int id) {
         try {
             File file = new File("/www/tvbox/juhe.json");
             if (file.exists()) {

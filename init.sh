@@ -19,6 +19,7 @@ init() {
   if [ -d /index ]; then
     rm -rf /index
   fi
+  [ -h /data/log/log ] && unlink /data/log/log
   ln -sf /data/index /
   ln -sf /data/config .
   cd /var/lib/pxg
@@ -69,6 +70,11 @@ if [ -f /opt/alist/data/data.db ]; then
   echo "已经初始化成功"
 else
   init
+fi
+
+if [ ! -d /www/cat ]; then
+  mkdir /www/cat
+  unzip -q -o /cat.zip -d /www/cat
 fi
 
 cd /tmp/

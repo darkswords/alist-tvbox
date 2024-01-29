@@ -65,13 +65,17 @@ public class LogsService {
     }
 
     public FileSystemResource downloadLog() throws IOException {
-        FileUtils.copyFileToDirectory(new File("/opt/alist/log/alist.log"), new File("/opt/atv/log/"));
+        File file = new File("/opt/alist/log/alist.log");
+        if (file.exists()) {
+            FileUtils.copyFileToDirectory(file, new File("/opt/atv/log/"));
+        }
+
         File out = new File("/tmp/log.zip");
         out.createNewFile();
         try (FileOutputStream fos = new FileOutputStream(out);
              ZipOutputStream zipOut = new ZipOutputStream(fos)) {
             File fileToZip = new File("/opt/atv/log/");
-            zipFile(fileToZip, fileToZip.getName(), zipOut);
+            zipFile(fileToZip, "", zipOut);
         }
         return new FileSystemResource(out);
     }
@@ -82,21 +86,15 @@ public class LogsService {
         }
 
         if (fileToZip.isDirectory()) {
-            if (fileName.endsWith("/")) {
-                zipOut.putNextEntry(new ZipEntry(fileName));
-                zipOut.closeEntry();
-            } else {
-                zipOut.putNextEntry(new ZipEntry(fileName + "/"));
-                zipOut.closeEntry();
-            }
-
             File[] children = fileToZip.listFiles();
             if (children == null) {
                 return;
             }
 
             for (File childFile : children) {
-                zipFile(childFile, fileName + "/" + childFile.getName(), zipOut);
+                if (childFile.isFile()) {
+                    zipFile(childFile, fileName + "/" + childFile.getName(), zipOut);
+                }
             }
             return;
         }

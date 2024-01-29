@@ -1,4 +1,6 @@
 spring:
+  main:
+    allow-bean-definition-overriding: true
   servlet:
     multipart:
       max-file-size: 20MB
@@ -9,6 +11,7 @@ spring:
     password: password
     driverClassName: org.h2.Driver
   jackson:
+    default-property-inclusion: non_null
     serialization:
       INDENT_OUTPUT: true
       FAIL_ON_EMPTY_BEANS: false
@@ -16,6 +19,7 @@ spring:
     hibernate:
       # possible values: validate | update | create | create-drop
       ddl-auto: update
+    database-platform: org.hibernate.dialect.H2Dialect
     defer-datasource-initialization: true
     open-in-view: false
   sql:
@@ -44,6 +48,8 @@ app:
     - dff
     - dsf
     - mp3
+    - m4v
+    - vob
     - aac
     - wav
     - wma
