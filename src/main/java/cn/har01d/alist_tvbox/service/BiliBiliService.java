@@ -100,12 +100,11 @@ import java.util.stream.Collectors;
 import static cn.har01d.alist_tvbox.util.Constants.BILIBILI_COOKIE;
 import static cn.har01d.alist_tvbox.util.Constants.BILI_BILI;
 import static cn.har01d.alist_tvbox.util.Constants.FILE;
-import static cn.har01d.alist_tvbox.util.Constants.LIST_PIC;
 import static cn.har01d.alist_tvbox.util.Constants.USER_AGENT;
 
 @Slf4j
 @Service
-public class BiliBiliService {
+public class  BiliBiliService {
     private static final int VIDEO_DASH = 16;
     private static final int VIDEO_HDR = 64;
     private static final int VIDEO_4K = 128;
@@ -485,7 +484,7 @@ public class BiliBiliService {
             movieDetail.setVod_id("recommend$0$0$" + page);
             movieDetail.setVod_name("推荐合集" + page);
             movieDetail.setVod_tag(FILE);
-            movieDetail.setVod_pic(LIST_PIC);
+            movieDetail.setVod_pic(getListPic());
             movieDetail.setVod_play_from(BILI_BILI);
             String playUrl = list.stream().map(e -> fixTitle(e.getTitle()) + "$" + buildPlayUrl(e.getBvid())).collect(Collectors.joining("#"));
             movieDetail.setVod_play_url(playUrl);
@@ -654,7 +653,7 @@ public class BiliBiliService {
         movieDetail.setVod_id("popular$0$0$" + page);
         movieDetail.setVod_name("合集" + page);
         movieDetail.setVod_tag(FILE);
-        movieDetail.setVod_pic(LIST_PIC);
+        movieDetail.setVod_pic(getListPic());
         movieDetail.setVod_play_from(BILI_BILI);
         String playUrl = list.stream().map(e -> fixTitle(e.getVod_name()) + "$" + buildPlayUrl(e.getVod_id())).collect(Collectors.joining("#"));
         movieDetail.setVod_play_url(playUrl);
@@ -686,7 +685,7 @@ public class BiliBiliService {
         movieDetail.setVod_id("popular$0$0$" + page);
         movieDetail.setVod_name("合集" + page);
         movieDetail.setVod_tag(FILE);
-        movieDetail.setVod_pic(LIST_PIC);
+        movieDetail.setVod_pic(getListPic());
         movieDetail.setVod_play_from(BILI_BILI);
         String playUrl = list.stream().map(e -> fixTitle(e.getTitle()) + "$" + buildPlayUrl(e)).collect(Collectors.joining("#"));
         movieDetail.setVod_play_url(playUrl);
@@ -738,6 +737,7 @@ public class BiliBiliService {
         map.put("web_location", "1550101");
         map.put("order_avoided", "true");
         map.put("dm_img_list", "[]");
+        map.put("dm_img_inter", "{\"ds\":[{\"t\":4,\"c\":\"bW9yZQ\",\"p\":[36,12,12],\"s\":[218,218,436]}],\"wh\":[5622,4674,22],\"of\":[431,862,431]}");
         map.put("dm_img_str", "V2ViR0wgMS4wIChPcGVuR0wgRVMgMi4wIENocm9taXVtKQ");
         map.put("dm_cover_img_str", "QU5HTEUgKE5WSURJQSBDb3Jwb3JhdGlvbiwgTlZJRElBIEdlRm9yY2UgUlRYIDQwNjAgVGkvUENJZS9TU0UyLCBPcGVuR0wgNC41LjApR29vZ2xlIEluYy4gKE5WSURJQSBDb3Jwb3JhdGlvbi");
 
@@ -766,7 +766,7 @@ public class BiliBiliService {
         movieDetail.setVod_id("up$" + mid + "$" + sort + "$" + page);
         movieDetail.setVod_name("合集" + page);
         movieDetail.setVod_tag(FILE);
-        movieDetail.setVod_pic(LIST_PIC);
+        movieDetail.setVod_pic(getListPic());
         movieDetail.setVod_play_from(BILI_BILI);
         String playUrl = list.stream().map(e -> fixTitle(e.getVod_name()) + "$" + buildPlayUrl(e.getVod_id())).collect(Collectors.joining("#"));
         movieDetail.setVod_play_url(playUrl);
@@ -804,6 +804,7 @@ public class BiliBiliService {
         map.put("web_location", "1550101");
         map.put("order_avoided", "true");
         map.put("dm_img_list", "[]");
+        map.put("dm_img_inter", "{\"ds\":[{\"t\":4,\"c\":\"bW9yZQ\",\"p\":[36,12,12],\"s\":[218,218,436]}],\"wh\":[5622,4674,22],\"of\":[431,862,431]}");
         map.put("dm_img_str", "V2ViR0wgMS4wIChPcGVuR0wgRVMgMi4wIENocm9taXVtKQ");
         map.put("dm_cover_img_str", "QU5HTEUgKE5WSURJQSBDb3Jwb3JhdGlvbiwgTlZJRElBIEdlRm9yY2UgUlRYIDQwNjAgVGkvUENJZS9TU0UyLCBPcGVuR0wgNC41LjApR29vZ2xlIEluYy4gKE5WSURJQSBDb3Jwb3JhdGlvbi");
 
@@ -824,7 +825,7 @@ public class BiliBiliService {
         movieDetail.setVod_id("up$" + id + "$0$" + page);
         movieDetail.setVod_name("合集" + page);
         movieDetail.setVod_tag(FILE);
-        movieDetail.setVod_pic(LIST_PIC);
+        movieDetail.setVod_pic(getListPic());
         movieDetail.setVod_play_from(BILI_BILI);
         String playUrl = list.stream().map(e -> fixTitle(e.getTitle()) + "$" + buildPlayUrl(e.getBvid())).collect(Collectors.joining("#"));
         movieDetail.setVod_play_url(playUrl);
@@ -943,7 +944,7 @@ public class BiliBiliService {
         movieDetail.setVod_id("region$" + tid + "$" + 0 + "$" + page);
         movieDetail.setVod_name("合集" + page);
         movieDetail.setVod_tag(FILE);
-        movieDetail.setVod_pic(LIST_PIC);
+        movieDetail.setVod_pic(getListPic());
         movieDetail.setVod_play_from(BILI_BILI);
         String playUrl = list.stream().map(e -> fixTitle(e.getVod_name()) + "$" + buildPlayUrl(e.getVod_id())).collect(Collectors.joining("#"));
         movieDetail.setVod_play_url(playUrl);
@@ -978,7 +979,7 @@ public class BiliBiliService {
         movieDetail.setVod_id("region$" + id + "$0$" + page);
         movieDetail.setVod_name("合集" + page);
         movieDetail.setVod_tag(FILE);
-        movieDetail.setVod_pic(LIST_PIC);
+        movieDetail.setVod_pic(getListPic());
         movieDetail.setVod_play_from(BILI_BILI);
         String playUrl = list.stream().map(e -> fixTitle(e.getTitle()) + "$" + buildPlayUrl(e)).collect(Collectors.joining("#"));
         movieDetail.setVod_play_url(playUrl);
@@ -1150,7 +1151,7 @@ public class BiliBiliService {
                 movieDetail.setVod_id(type + videoId);
                 movieDetail.setVod_name(title);
                 movieDetail.setVod_tag(FILE);
-                movieDetail.setVod_pic(cover.isEmpty() ? LIST_PIC : fixCover(cover));
+                movieDetail.setVod_pic(cover.isEmpty() ? getListPic() : fixCover(cover));
                 movieDetail.setVod_content(desc);
                 movieDetail.setVod_play_from(sections.keySet().stream().map(this::getSectionType).collect(Collectors.joining("$$$")));
                 String playUrl = sections.values().stream()
@@ -1232,7 +1233,7 @@ public class BiliBiliService {
         searchPlaylist.setVod_id("search$" + wd + "$0$" + page);
         searchPlaylist.setVod_name(wd + "合集" + (page + 1));
         searchPlaylist.setVod_tag(FILE);
-        searchPlaylist.setVod_pic(LIST_PIC);
+        searchPlaylist.setVod_pic(getListPic());
         searchPlaylist.setVod_play_from(BILI_BILI);
         String playUrl = list.stream().map(e -> fixTitle(e.getTitle()) + "$" + buildPlayUrl(e.getBvid())).collect(Collectors.joining("#"));
         searchPlaylist.setVod_play_url(playUrl);
@@ -1306,7 +1307,7 @@ public class BiliBiliService {
         String[] parts = bvid.split("-");
         int fnval = 16;
         Map<String, Object> result = new HashMap<>();
-        dash = dash || appProperties.isSupportDash() || "open".equals(client);
+        dash = dash || "open".equals(client) || appProperties.isSupportDash();
         if (dash) {
             fnval = settingRepository.findById("bilibili_fnval").map(Setting::getValue).map(Integer::parseInt).orElse(FN_VAL);
         }
@@ -1339,7 +1340,6 @@ public class BiliBiliService {
             }
 
             result = DashUtils.convert(response.getBody(), "open".equals(client));
-            result.put("dash", aid + "+" + cid + "+127");
         } else {
             ResponseEntity<BiliBiliPlayResponse> response = restTemplate.exchange(url, HttpMethod.GET, entity, BiliBiliPlayResponse.class);
             BiliBiliPlayResponse res = response.getBody();
@@ -1356,9 +1356,6 @@ public class BiliBiliService {
         headers.put("Referer", "https://www.bilibili.com");
         headers.put("cookie", cookie);
         headers.put("User-Agent", USER_AGENT);
-        if (dash) {
-            headers.put("Content-Type", "application/dash+xml");
-        }
         result.put("header", objectMapper.writeValueAsString(headers));
 
         result.put("subs", getSubtitles(aid, cid));
@@ -1742,7 +1739,7 @@ public class BiliBiliService {
         movieDetail.setVod_id("type$" + tid + "$" + type + "$" + page);
         movieDetail.setVod_name("合集" + page);
         movieDetail.setVod_tag(FILE);
-        movieDetail.setVod_pic(LIST_PIC);
+        movieDetail.setVod_pic(getListPic());
         movieDetail.setVod_play_from(BILI_BILI);
         String playUrl = list.stream().map(e -> fixTitle(e.getVod_name()) + "$" + buildPlayUrl(e.getVod_id())).collect(Collectors.joining("#"));
         movieDetail.setVod_play_url(playUrl);
@@ -1772,7 +1769,7 @@ public class BiliBiliService {
         movieDetail.setVod_id("type$" + id + "$0$" + page);
         movieDetail.setVod_name("合集" + page);
         movieDetail.setVod_tag(FILE);
-        movieDetail.setVod_pic(LIST_PIC);
+        movieDetail.setVod_pic(getListPic());
         movieDetail.setVod_play_from(BILI_BILI);
         String playUrl = list.stream().map(e -> fixTitle(e.getTitle()) + "$" + buildPlayUrl(e.getBvid())).collect(Collectors.joining("#"));
         movieDetail.setVod_play_url(playUrl);
@@ -1795,7 +1792,7 @@ public class BiliBiliService {
         movieDetail.setVod_id("recommend$0$0$" + page);
         movieDetail.setVod_name("推荐合集" + page);
         movieDetail.setVod_tag(FILE);
-        movieDetail.setVod_pic(LIST_PIC);
+        movieDetail.setVod_pic(getListPic());
         movieDetail.setVod_play_from(BILI_BILI);
         String playUrl = list.stream().map(e -> fixTitle(e.getTitle()) + "$" + buildPlayUrl(e.getBvid())).collect(Collectors.joining("#"));
         movieDetail.setVod_play_url(playUrl);
@@ -1841,7 +1838,7 @@ public class BiliBiliService {
         movieDetail.setVod_id("channel$" + id + "$" + sort + "$" + page);
         movieDetail.setVod_name("合集" + page);
         movieDetail.setVod_tag(FILE);
-        movieDetail.setVod_pic(LIST_PIC);  // TODO: cover
+        movieDetail.setVod_pic(getListPic());  // TODO: cover
         movieDetail.setVod_play_from(BILI_BILI);
         String playUrl = list.stream().map(e -> fixTitle(e.getVod_name()) + "$" + buildPlayUrl(e.getVod_id())).collect(Collectors.joining("#"));
         movieDetail.setVod_play_url(playUrl);
@@ -1885,7 +1882,7 @@ public class BiliBiliService {
         movieDetail.setVod_id("channel$" + id + "$0$" + page);
         movieDetail.setVod_name("合集" + page);
         movieDetail.setVod_tag(FILE);
-        movieDetail.setVod_pic(LIST_PIC);
+        movieDetail.setVod_pic(getListPic());
         movieDetail.setVod_play_from(BILI_BILI);
         String playUrl = list.stream().map(e -> fixTitle(e.getName()) + "$" + buildPlayUrl(e.getBvid())).collect(Collectors.joining("#"));
         movieDetail.setVod_play_url(playUrl);
@@ -1920,7 +1917,7 @@ public class BiliBiliService {
             movieDetail.setVod_id("search$" + wd + "$" + getType(sort) + "$" + (pg - 1));
             movieDetail.setVod_name(wd + "合集" + pg);
             movieDetail.setVod_tag(FILE);
-            movieDetail.setVod_pic(LIST_PIC);
+            movieDetail.setVod_pic(getListPic());
             movieDetail.setVod_play_from(BILI_BILI);
             String playUrl = videos.stream().map(e -> fixTitle(e.getTitle()) + "$" + buildPlayUrl(e.getBvid())).collect(Collectors.joining("#"));
             movieDetail.setVod_play_url(playUrl);
@@ -1952,7 +1949,7 @@ public class BiliBiliService {
                 movieDetail.setVod_id("search$" + wd + "$0$" + i);
                 movieDetail.setVod_name(wd + "合集" + (i + 1));
                 movieDetail.setVod_tag(FILE);
-                movieDetail.setVod_pic(LIST_PIC);
+                movieDetail.setVod_pic(getListPic());
                 movieDetail.setVod_play_from(BILI_BILI);
                 if (i == 0) {
                     String playUrl = list.stream().map(e -> fixTitle(e.getTitle()) + "$" + buildPlayUrl(e.getBvid())).collect(Collectors.joining("#"));
@@ -2091,6 +2088,10 @@ public class BiliBiliService {
                 .query("url=" + fixUrl(url))
                 .build()
                 .toUriString();
+    }
+
+    private String getListPic() {
+        return ServletUriComponentsBuilder.fromCurrentRequest().replacePath("/list.png").build().toUriString();
     }
 
     private static String fixUrl(String url) {

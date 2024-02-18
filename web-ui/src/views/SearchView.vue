@@ -18,11 +18,13 @@
       </el-radio-group>
     </el-form-item>
 
-    <a href="/#/meta">电影数据列表</a>
+    <a href="/#/meta">豆瓣电影数据列表</a>
+    <span class="divider"></span>
+    <a href="/#/tmdb">TMDB电影数据列表</a>
 
     <h2>API返回数据</h2>
     <div class="data">
-      <json-viewer :value="config" expanded copyable :expand-depth=3></json-viewer>
+      <json-viewer :value="config" expanded copyable show-double-quotes :show-array-index="false" :expand-depth=3></json-viewer>
     </div>
   </div>
 </template>
@@ -64,5 +66,8 @@ onMounted(() => {
 <style scoped>
 .description {
   margin-bottom: 12px;
+}
+.divider {
+  margin-left: 24px;
 }
 </style>

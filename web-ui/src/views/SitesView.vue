@@ -126,7 +126,7 @@
       <el-divider/>
       <h2>JSON数据</h2>
       <el-scrollbar height="600px">
-        <json-viewer :value="jsonData" expanded copyable :expand-depth=3></json-viewer>
+        <json-viewer :value="jsonData" expanded copyable show-double-quotes :show-array-index="false" :expand-depth=3></json-viewer>
       </el-scrollbar>
       <div class="json"></div>
       <template #footer>
@@ -162,7 +162,7 @@
                 </div>
               </template>
             </el-upload>
-            <a href="/#/meta">电影数据列表</a>
+            <a href="/#/tmdb">TMDB电影数据列表</a>
           </div>
         </div>
         <div v-for="line of indexContent">

@@ -175,6 +175,24 @@ tvbox/my.json和juhe.json不能在TvBox直接使用，请使用订阅地址！
 
 ![订阅预览](https://raw.githubusercontent.com/power721/alist-tvbox/master/doc/atv_sub_data.png)
 
+#### 自定义多仓订阅
+在文件页面新建文件，目录：/www/tvbox/repo，名称：订阅id.json，比如：1.json。
+内容留空(返回全部订阅)或者自定义内容：
+```json
+{
+  "urls": [
+    {
+      "url": "ATV_ADDRESS/sub/1",
+      "name": "内置小雅搜索源"
+    },
+    {
+      "url": "https://tvbox.cainisi.cf",
+      "name": "🦐菜妮丝"
+    }
+  ]
+}
+```
+
 ### 资源
 第一次启动会自动读取/data/alishare_list.txt文件里面的分享内容，并保存到数据库，以后这个文件就不再生效。
 
@@ -278,6 +296,15 @@ tvbox/my.json和juhe.json不能在TvBox直接使用，请使用订阅地址！
 2. 提供豆瓣ID刮削：
 /电影/中国/F 封神：朝歌风云 [2023][4K]动作 战争 奇幻 古装[正式版]##10604086
 
+#### TMDB刮削
+1. 申请TMDB账号，https://www.themoviedb.org/
+2. 申请TMDB API key，https://developer.themoviedb.org/docs/getting-started
+3. 配置页面 -> 高级设置 -> TMDB API Key -> 填写你的 API Key
+4. 创建索引
+5. TMDB电影数据列表，使用索引文件进行刮削
+
+使用内置的API Key会限速，建议申请自己的API key。
+
 ### 别名
 把一些路径合并成一个路径。
 
@@ -291,6 +318,65 @@ tvbox/my.json和juhe.json不能在TvBox直接使用，请使用订阅地址！
 密码: guest_Api789
 
 ![WebDAV](https://raw.githubusercontent.com/power721/alist-tvbox/master/doc/webdav.jpg)
+
+### 猫影视
+#### 自定义猫影视配置
+
+在应用目录（默认/etc/xiaoya）创建cat文件夹(/etc/xiaoya/cat)。
+
+放入自己的js文件和my.json（格式和config_open.json一样），在订阅页面点击同步文件按钮，应用会合并配置。
+
+放入自己的config_open.json文件，将会覆盖内置的配置。
+
+/etc/xiaoya/cat/my.json文件示例（/etc/xiaoya/cat/kkys_open.js、/etc/xiaoya/cat/kkys2_open.js）：
+
+[示例文件](https://raw.githubusercontent.com/power721/alist-tvbox/master/doc/my.json)
+
+``` json
+{
+    "video": {
+        "sites": [
+          {
+            "key": "kkys",
+            "name": "🟢 快看1",
+            "type": 3,
+            "api": "/cat/kkys_open.js"
+          },
+          {
+            "key": "kkys2",
+            "name": "🟢 快看2",
+            "type": 3,
+            "api": "/cat/kkys_open2.js"
+          }
+        ]
+    }
+}
+```
+
+### 自定义路径label
+在文件界面新建一个文件/data/label.txt
+```text
+🎞:/电影  #匹配以/电影 开头的路径
+📺:/电视剧
+🧸:/动漫
+🎤:/综艺
+🔬:/纪录片
+🎶:/音乐
+📖:/有声书
+🧺:/整理中
+🅿️:/每日更新/PikPak #顺序很重要
+📅:/每日更新
+🎓:/教育
+🎸:/曲艺
+⚽️:/体育
+📮:/🈴我的阿里分享/Tacit0924 #顺序很重要
+🈴:/🈴我的阿里分享
+5️⃣:115  #路径包含115
+🅿️:PikPak
+📀:阿里云盘
+🌞:夸克网盘
+🎎:我的套娃
+```
 
 ### 其它
 不再生效的文件可以保留，以后删除数据库后可以恢复。

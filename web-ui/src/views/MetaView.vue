@@ -1,6 +1,6 @@
 <template>
   <div class="files">
-    <h1>电影数据列表</h1>
+    <h1>豆瓣电影数据列表</h1>
     <el-row justify="end">
       <el-input v-model="keyword" @change="search" class="search" autocomplete="off"/>
       <el-button type="primary" @click="search" :disabled="!keyword">
@@ -25,9 +25,17 @@
           </a>
         </template>
       </el-table-column>
+      <el-table-column prop="tmId" label="TMDB ID" width="100">
+        <template #default="scope">
+          <a v-if="scope.row.tmId" :href="'https://www.themoviedb.org/' + scope.row.type + '/' + scope.row.tmId"
+             target="_blank">
+            {{ scope.row.tmId }}
+          </a>
+        </template>
+      </el-table-column>
       <el-table-column prop="path" label="路径">
         <template #default="scope">
-          <a :href="url + scope.row.path" target="_blank">
+          <a :href="getUrl(scope.row)" target="_blank">
             {{ scope.row.path }}
           </a>
         </template>
@@ -48,14 +56,19 @@
 
     <el-dialog v-model="formVisible" :title="'编辑 '+form.id" width="60%">
       <el-form label-width="140px">
+        <el-form-item label="站点" required>
+          <el-select v-model="form.siteId">
+            <el-option :label="site.name" :value="site.id" v-for="site of sites"/>
+          </el-select>
+        </el-form-item>
         <el-form-item label="路径" required>
           <el-input v-model="form.path" autocomplete="off" readonly/>
         </el-form-item>
         <el-form-item label="豆瓣ID" required>
-          <el-input-number v-model="form.movieId" autocomplete="off"/>
+          <el-input-number v-model="form.movieId" min="0" autocomplete="off"/>
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" @click="updateMeta">更新</el-button>
+          <el-button type="primary" :disabled="!form.movieId" @click="updateMeta">更新</el-button>
         </el-form-item>
         <el-form-item label="名称" required>
           <el-input v-model="form.name" autocomplete="off"/>
@@ -70,7 +83,7 @@
       </el-form>
       <template #footer>
       <span class="dialog-footer">
-        <el-button type="danger" size="small" @click="dialogVisible=true">删除</el-button>
+        <el-button type="danger" @click="dialogVisible=true">删除</el-button>
         <el-button @click="formVisible=false">取消</el-button>
       </span>
       </template>
@@ -82,7 +95,7 @@
           <el-input v-model="form.path" autocomplete="off"/>
         </el-form-item>
         <el-form-item label="豆瓣ID" required>
-          <el-input-number v-model="form.movieId" autocomplete="off"/>
+          <el-input-number v-model="form.movieId" min="0" autocomplete="off"/>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -144,6 +157,7 @@ interface Meta {
   year: number
   score: number
   movieId: number
+  siteId: number
 }
 
 const sizes = [20, 40, 60, 80, 100]
@@ -171,6 +185,7 @@ const form = ref({
   year: 0,
   score: 0,
   movieId: 0,
+  siteId: 1,
 })
 
 const handleSelectionChange = (val: Meta[]) => {
@@ -219,6 +234,14 @@ const fixMeta = () => {
   })
 }
 
+const getUrl = (meta: Meta) => {
+  const site = sites.value.find(e => e.id == meta.siteId)
+  if (site && site.url !== 'http://localhost') {
+    return site.url + meta.path
+  }
+  return url.value + meta.path
+}
+
 const addMeta = () => {
   form.value = {
     id: 0,
@@ -227,6 +250,7 @@ const addMeta = () => {
     year: 0,
     score: 0,
     movieId: 0,
+    siteId: 1,
   }
   addVisible.value = true
 }
@@ -245,12 +269,12 @@ const saveMeta = () => {
 }
 
 const editMeta = (data: any) => {
-  form.value = Object.assign({}, data)
+  form.value = Object.assign({siteId: 1}, data)
   formVisible.value = true
 }
 
 const updateMeta = () => {
-  axios.post('/api/meta/' + form.value.id + '/movie?movieId=' + form.value.movieId).then(({data}) => {
+  axios.post('/api/meta/' + form.value.id, form.value).then(({data}) => {
     if (data) {
       ElMessage.success('更新成功')
       formVisible.value = false
