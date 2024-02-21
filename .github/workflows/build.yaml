@@ -139,7 +139,9 @@ jobs:
           file: Dockerfile-native
           platforms: linux/amd64
           push: true
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/xiaoya-tvbox:native
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/xiaoya-tvbox:native
+            ${{ secrets.DOCKERHUB_USERNAME }}/xiaoya-tvbox:native${{ env.RELEASE_VERSION }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
       - name: Build host native docker and push
