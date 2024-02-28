@@ -12,23 +12,36 @@ window.onresize = () => {
   width.value = window.innerWidth - 40
 }
 
-onMounted(() => {
+const loadBaseUrl = () => {
+  if (store.baseUrl) {
+    url.value = store.baseUrl
+    return
+  }
+
   axios.get('/api/sites/1').then(({data}) => {
+    url.value = data.url
     const re = /http:\/\/localhost:(\d+)/.exec(data.url)
     if (re) {
       url.value = 'http://' + window.location.hostname + ':' + re[1]
+      store.baseUrl = url.value
+      console.log('load AList ' + url.value)
     } else if (data.url == 'http://localhost') {
       axios.get('/api/alist/port').then(({data}) => {
         if (data) {
           url.value = 'http://' + window.location.hostname + ':' + data
+          store.baseUrl = url.value
+          console.log('load AList ' + url.value)
         }
       })
     } else {
-      url.value = data.url
+      store.baseUrl = url.value
+      console.log('load AList ' + url.value)
     }
-    store.baseUrl = url.value
-    console.log('load AList ' + url.value)
   })
+}
+
+onMounted(() => {
+  loadBaseUrl()
 })
 </script>
 

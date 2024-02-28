@@ -158,7 +158,7 @@ tvbox/my.json和juhe.json不能在TvBox直接使用，请使用订阅地址！
 
 站点`key`是必须的，其它字段可选。对于lives，rules，parses，doh类型，`name`字段是必须的。
 
-站点名称可以加前缀，通过订阅URL前面加前缀，使用`@`分割。比如：`饭@http://饭太硬.top/tv,菜@https://tvbox.cainisi.cf`
+站点名称可以加前缀，通过订阅URL前面加前缀，使用`@`分割。比如：`饭@http://饭太硬.top/tv,菜@https://tv.菜妮丝.top`
 
 替换功能：
 
@@ -186,7 +186,7 @@ tvbox/my.json和juhe.json不能在TvBox直接使用，请使用订阅地址！
       "name": "内置小雅搜索源"
     },
     {
-      "url": "https://tvbox.cainisi.cf",
+      "url": "https://tv.菜妮丝.top",
       "name": "🦐菜妮丝"
     }
   ]
@@ -302,6 +302,7 @@ tvbox/my.json和juhe.json不能在TvBox直接使用，请使用订阅地址！
 3. 配置页面 -> 高级设置 -> TMDB API Key -> 填写你的 API Key
 4. 创建索引
 5. TMDB电影数据列表，使用索引文件进行刮削
+6. 失败的路径保存在 /etc/xiaoya/atv/tmdb_paths.txt
 
 使用内置的API Key会限速，建议申请自己的API key。
 

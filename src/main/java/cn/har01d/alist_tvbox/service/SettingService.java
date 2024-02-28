@@ -3,12 +3,19 @@ package cn.har01d.alist_tvbox.service;
 import cn.har01d.alist_tvbox.config.AppProperties;
 import cn.har01d.alist_tvbox.entity.Setting;
 import cn.har01d.alist_tvbox.entity.SettingRepository;
+import cn.har01d.alist_tvbox.util.Utils;
 import jakarta.annotation.PostConstruct;
+import org.springframework.core.env.Environment;
+import org.springframework.core.io.FileSystemResource;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.util.Map;
 import java.util.stream.Collectors;
+import java.util.zip.ZipOutputStream;
 
 @Service
 public class SettingService {
@@ -26,6 +33,7 @@ public class SettingService {
 
     @PostConstruct
     public void setup() {
+        settingRepository.save(new Setting("install_mode", System.getProperty("INSTALL", "xiaoya")));
         appProperties.setMerge(settingRepository.findById("merge_site_source").map(Setting::getValue).orElse("").equals("true"));
         appProperties.setHeartbeat(settingRepository.findById("bilibili_heartbeat").map(Setting::getValue).orElse("").equals("true"));
         appProperties.setSupportDash(settingRepository.findById("bilibili_dash").map(Setting::getValue).orElse("").equals("true"));
@@ -35,8 +43,16 @@ public class SettingService {
         appProperties.setSearchable(!settingRepository.findById("bilibili_searchable").map(Setting::getValue).orElse("").equals("false"));
     }
 
-    public void exportDatabase() {
-        jdbcTemplate.execute("SCRIPT TO '/data/data-h2.sql' TABLE ACCOUNT, ALIST_ALIAS, CONFIG_FILE, INDEX_TEMPLATE, PIK_PAK_ACCOUNT, SETTING, SHARE, SITE, SUBSCRIPTION, USERS");
+    public FileSystemResource exportDatabase() throws IOException {
+        jdbcTemplate.execute("SCRIPT TO '/data/data-h2.sql' TABLE ACCOUNT, ALIST_ALIAS, CONFIG_FILE, INDEX_TEMPLATE, NAVIGATION, PIK_PAK_ACCOUNT, SETTING, SHARE, SITE, SUBSCRIPTION, USERS");
+        File out = new File("/tmp/alist-tvbox.zip");
+        out.createNewFile();
+        try (FileOutputStream fos = new FileOutputStream(out);
+             ZipOutputStream zipOut = new ZipOutputStream(fos)) {
+            File fileToZip = new File("/data/data-h2.sql");
+            Utils.zipFile(fileToZip, fileToZip.getName(), zipOut);
+        }
+        return new FileSystemResource(out);
     }
 
     public Map<String, String> findAll() {

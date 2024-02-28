@@ -55,7 +55,7 @@ done
 
 echo -e "\e[33m重启应用，host网络模式\e[0m"
 docker rm -f xiaoya-tvbox 2>/dev/null && \
-docker run -d --network host -v "$BASE_DIR":/data ${MOUNT} --restart=always --name=xiaoya-tvbox haroldli/xiaoya-tvbox:${TAG}
+docker run -d --network host -e INSTALL=hostmode -v "$BASE_DIR":/data ${MOUNT} --restart=always --name=xiaoya-tvbox haroldli/xiaoya-tvbox:${TAG}
 
 echo -e "\n\e[32m请使用以下命令查看日志输出：\e[0m"
 echo -e "    docker logs -f xiaoya-tvbox\n"
@@ -65,7 +65,7 @@ if [ -n "$IP" ]; then
   echo ""
   echo -e "\e[32m请用以下地址访问：\e[0m"
   echo -e "    \e[32m管理界面\e[0m： http://$IP:4567/"
-  echo -e "    \e[32m小雅AList\e[0m： http://$IP:5234/"
+  echo -e "    \e[32m小雅AList\e[0m： http://$IP:5678/"
 else
   echo -e "\e[32m云服务器请用公网IP访问\e[0m"
 fi

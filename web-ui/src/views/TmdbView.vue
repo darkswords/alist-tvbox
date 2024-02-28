@@ -1,17 +1,18 @@
 <template>
   <div class="files">
     <h1>TMDB电影数据列表</h1>
+    <a href="/#/meta">豆瓣电影数据列表</a>
     <el-row justify="end">
       <el-input v-model="keyword" @change="search" class="search" autocomplete="off"/>
       <el-button type="primary" @click="search" :disabled="!keyword">
         搜索
       </el-button>
-      <el-button @click="showScrapeIndex" v-if="showScrape">刮削</el-button>
+      <el-button @click="showScrapeIndex">刮削</el-button>
       <!--      <el-button @click="fixMeta">去重</el-button>-->
       <el-button @click="syncMeta">同步</el-button>
       <el-button>|</el-button>
       <el-button @click="refresh">刷新</el-button>
-      <el-button type="primary" @click="addMeta" v-if="showScrape">添加</el-button>
+      <el-button type="primary" @click="addMeta">添加</el-button>
       <el-button type="danger" @click="handleDeleteBatch" v-if="multipleSelection.length">删除</el-button>
     </el-row>
     <div class="space"></div>
@@ -40,8 +41,8 @@
           </a>
         </template>
       </el-table-column>
-      <el-table-column prop="year" label="年份" width="100"/>
-      <el-table-column prop="score" label="评分" width="100"/>
+      <el-table-column prop="year" label="年份" width="65"/>
+      <el-table-column prop="score" label="评分" width="60"/>
       <el-table-column fixed="right" label="操作" width="200">
         <template #default="scope">
           <el-button type="primary" size="small" @click="editMeta(scope.row)">编辑</el-button>
@@ -171,17 +172,7 @@ import axios from "axios"
 import {ElMessage} from "element-plus";
 import {store} from "@/services/store";
 import type {Site} from "@/model/Site";
-
-interface Meta {
-  id: number
-  name: string
-  type: string
-  path: string
-  year: number
-  score: number
-  tmId: number
-  siteId: number
-}
+import type {Meta} from "@/model/Meta";
 
 const sizes = [20, 40, 60, 80, 100]
 const url = ref('http://' + window.location.hostname + ':5344')
@@ -200,7 +191,6 @@ const dialogVisible = ref(false)
 const formVisible = ref(false)
 const addVisible = ref(false)
 const scrapeVisible = ref(false)
-const showScrape = ref(true)
 const batch = ref(false)
 const form = ref({
   id: 0,
@@ -262,7 +252,11 @@ const fixMeta = () => {
 const getUrl = (meta: Meta) => {
   const site = sites.value.find(e => e.id == meta.siteId)
   if (site && site.url !== 'http://localhost') {
-    return site.url + meta.path
+    let surl = site.url
+    if (surl.endsWith('/')) {
+      surl = surl.substring(0, surl.length - 1)
+    }
+    return surl + meta.path
   }
   return url.value + meta.path
 }
@@ -379,24 +373,26 @@ const loadBaseUrl = () => {
     return
   }
 
-  if (store.xiaoya) {
-    axios.get('/api/sites/1').then(({data}) => {
-      const re = /http:\/\/localhost:(\d+)/.exec(data.url)
-      if (re) {
-        url.value = 'http://' + window.location.hostname + ':' + re[1]
-      } else if (data.url == 'http://localhost') {
-        axios.get('/api/alist/port').then(({data}) => {
-          if (data) {
-            url.value = 'http://' + window.location.hostname + ':' + data
-          }
-        })
-      } else {
-        url.value = data.url
-      }
+  axios.get('/api/sites/1').then(({data}) => {
+    url.value = data.url
+    const re = /http:\/\/localhost:(\d+)/.exec(data.url)
+    if (re) {
+      url.value = 'http://' + window.location.hostname + ':' + re[1]
       store.baseUrl = url.value
       console.log('load AList ' + url.value)
-    })
-  }
+    } else if (data.url == 'http://localhost') {
+      axios.get('/api/alist/port').then(({data}) => {
+        if (data) {
+          url.value = 'http://' + window.location.hostname + ':' + data
+          store.baseUrl = url.value
+          console.log('load AList ' + url.value)
+        }
+      })
+    } else {
+      store.baseUrl = url.value
+      console.log('load AList ' + url.value)
+    }
+  })
 }
 
 onMounted(() => {

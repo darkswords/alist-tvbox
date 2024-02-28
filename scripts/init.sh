@@ -31,8 +31,10 @@ init() {
   rm -f mobi.tgz tvbox.zip index.zip index.txt version.txt update.zip
 }
 
+echo "Install mode: $INSTALL"
 cat data/app_version
 date
+uname -mor
 
 if [ -f /opt/alist/data/data.db ]; then
   echo "已经初始化成功"

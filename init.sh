@@ -60,9 +60,11 @@ init() {
   update_movie
 }
 
+echo "Install mode: $INSTALL"
 cat data/app_version
 version=$(head -n1 /docker.version)
 echo "xiaoya version: $version"
+uname -mor
 date
 
 if [ -f /opt/alist/data/data.db ]; then
