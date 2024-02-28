@@ -95,7 +95,6 @@ jobs:
           push: true
           tags: |
             ${{ secrets.DOCKERHUB_USERNAME }}/xiaoya-tvbox:latest
-            # ${{ secrets.DOCKERHUB_USERNAME }}/xiaoya-tvbox:${{ env.RELEASE_VERSION }}
             ${{ secrets.DOCKERHUB_USERNAME }}/xiaoya-tvbox:${{ env.DATE_TAG }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
