@@ -1,11 +1,14 @@
 package cn.har01d.alist_tvbox.service;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.LoggerContext;
 import cn.har01d.alist_tvbox.config.AppProperties;
 import cn.har01d.alist_tvbox.entity.Setting;
 import cn.har01d.alist_tvbox.entity.SettingRepository;
 import cn.har01d.alist_tvbox.util.Utils;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.LoggerFactory;
 import org.springframework.core.env.Environment;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -27,13 +30,15 @@ public class SettingService {
     private final Environment environment;
     private final AppProperties appProperties;
     private final TmdbService tmdbService;
+    private final AListLocalService aListLocalService;
     private final SettingRepository settingRepository;
 
-    public SettingService(JdbcTemplate jdbcTemplate, Environment environment, AppProperties appProperties, TmdbService tmdbService, SettingRepository settingRepository) {
+    public SettingService(JdbcTemplate jdbcTemplate, Environment environment, AppProperties appProperties, TmdbService tmdbService, AListLocalService aListLocalService, SettingRepository settingRepository) {
         this.jdbcTemplate = jdbcTemplate;
         this.environment = environment;
         this.appProperties = appProperties;
         this.tmdbService = tmdbService;
+        this.aListLocalService = aListLocalService;
         this.settingRepository = settingRepository;
     }
 
@@ -47,6 +52,7 @@ public class SettingService {
         appProperties.setEnableHttps(settingRepository.findById("enable_https").map(Setting::getValue).orElse("").equals("true"));
         appProperties.setMix(!settingRepository.findById("mix_site_source").map(Setting::getValue).orElse("").equals("false"));
         appProperties.setSearchable(!settingRepository.findById("bilibili_searchable").map(Setting::getValue).orElse("").equals("false"));
+        settingRepository.findById("debug_log").ifPresent(this::setLogLevel);
     }
 
     public FileSystemResource exportDatabase() throws IOException {
@@ -103,6 +109,10 @@ public class SettingService {
         return map;
     }
 
+    public Setting get(String name) {
+        return settingRepository.findById(name).orElse(null);
+    }
+
     public Setting update(Setting setting) {
         if ("merge_site_source".equals(setting.getName())) {
             appProperties.setMerge("true".equals(setting.getValue()));
@@ -128,7 +138,24 @@ public class SettingService {
         if ("tmdb_api_key".equals(setting.getName())) {
             tmdbService.setApiKey(setting.getValue());
         }
+        if ("debug_log".equals(setting.getName())) {
+            setLogLevel(setting);
+        }
+        if ("delete_delay_time".equals(setting.getName())) {
+            aListLocalService.updateSetting("delete_delay_time", setting.getValue(), "number");
+        }
         return settingRepository.save(setting);
     }
 
+    private void setLogLevel(Setting setting) {
+        LoggerContext loggerContext = (LoggerContext) LoggerFactory.getILoggerFactory();
+        ch.qos.logback.classic.Logger logger = loggerContext.getLogger("cn.har01d");
+        if ("true".equals(setting.getValue())) {
+            log.info("enable debug log");
+            logger.setLevel(Level.DEBUG);
+        } else {
+            log.info("disable debug log");
+            logger.setLevel(Level.INFO);
+        }
+    }
 }
