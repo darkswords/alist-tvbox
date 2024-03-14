@@ -115,9 +115,7 @@ jobs:
           file: Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/alist-tvbox:latest
-            ${{ secrets.DOCKERHUB_USERNAME }}/alist-tvbox:${{ env.RELEASE_VERSION }}
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/alist-tvbox:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
       - name: Build native with Maven
@@ -180,7 +178,5 @@ jobs:
           message: |
             ${{ github.actor }} created commit:
             Commit message: ${{ github.event.commits[0].message }}
-
             Repository: ${{ github.repository }}
-
             See changes: https://github.com/${{ github.repository }}/commit/${{github.sha}}
