@@ -42,7 +42,7 @@ jobs:
       - name: Setup node
         uses: actions/setup-node@v3
         with:
-          node-version: 18.16.x
+          node-version: 20.1.x
           cache: npm
           cache-dependency-path: ./web-ui
       - name: Install npm
