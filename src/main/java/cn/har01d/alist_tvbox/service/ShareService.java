@@ -16,6 +16,7 @@ import cn.har01d.alist_tvbox.entity.ShareRepository;
 import cn.har01d.alist_tvbox.entity.Site;
 import cn.har01d.alist_tvbox.entity.SiteRepository;
 import cn.har01d.alist_tvbox.exception.BadRequestException;
+import cn.har01d.alist_tvbox.model.Response;
 import cn.har01d.alist_tvbox.util.Constants;
 import cn.har01d.alist_tvbox.util.Utils;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -116,7 +117,7 @@ public class ShareService {
             list = loadSharesFromFile();
         }
 
-        Share share = loadTacit0924();
+        Share share = loadTacit0924(list.stream().filter(e -> e.getId() == 7000).findAny().orElse(null));
         if (share != null) {
             list = list.stream().filter(e -> e.getId() != 7000).collect(Collectors.toList());
             list.add(share);
@@ -692,7 +693,17 @@ public class ShareService {
         HttpHeaders headers = new HttpHeaders();
         headers.put("Authorization", Collections.singletonList(accountService.login()));
         HttpEntity<Map<String, Object>> entity = new HttpEntity<>(null, headers);
-        ResponseEntity<Object> response = restTemplate.exchange("/api/admin/storage/list?page=" + pageable.getPageNumber() + "&per_page=" + pageable.getPageSize(), HttpMethod.GET, entity, Object.class);
+        ResponseEntity<Object> response = restTemplate.exchange("/api/admin/storage/failed?page=" + pageable.getPageNumber() + "&per_page=" + pageable.getPageSize(), HttpMethod.GET, entity, Object.class);
+        return response.getBody();
+    }
+
+    public Response reloadStorage(Integer id) {
+        aListLocalService.validateAListStatus();
+        HttpHeaders headers = new HttpHeaders();
+        headers.put("Authorization", Collections.singletonList(accountService.login()));
+        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(null, headers);
+        ResponseEntity<Response> response = restTemplate.exchange("/api/admin/storage/reload?id=" + id, HttpMethod.POST, entity, Response.class);
+        log.debug("reload storage {}: {}", id, response.getBody());
         return response.getBody();
     }
 
@@ -719,7 +730,7 @@ public class ShareService {
         return null;
     }
 
-    private Share loadTacit0924() {
+    private Share loadTacit0924(Share old) {
         if (!environment.matchesProfiles("xiaoya")) {
             return null;
         }
@@ -729,6 +740,9 @@ public class ShareService {
             String[] parts = link.split(":");
             link = parts[0];
             String code = parts.length == 1 ? "" : parts[1];
+            if (old != null && old.getShareId().equals(link) && old.getPassword().equals(code)) {
+                return null;
+            }
             log.info("Tacit0924 link: {} {}", link, code);
             String shareToken = getShareToken(link, code);
             String folder = getFolderId(link, shareToken);
@@ -781,13 +795,16 @@ public class ShareService {
     }
 
     private String getFolderId(String shareId, String shareToken) {
+        String fileId = "root";
         try {
-            String fileId = getFileId(shareId, shareToken, "root");
-            return getFileId(shareId, shareToken, fileId);
+            Thread.sleep(1500);
+            fileId = getFileId(shareId, shareToken, fileId);
+            Thread.sleep(1500);
+            fileId = getFileId(shareId, shareToken, fileId);
         } catch (Exception e) {
             log.warn("", e);
         }
-        return "root";
+        return fileId;
     }
 
     private String getShareToken(String shareId, String code) {
