@@ -182,6 +182,10 @@ public class SubscriptionService {
     }
 
     public void checkToken(String rawToken) {
+        if (rawToken.equals("-") && tokens.isBlank()) {
+            return;
+        }
+
         for (String t : tokens.split(",")) {
             if (t.equals(rawToken)) {
                 return;
@@ -219,6 +223,29 @@ public class SubscriptionService {
 
     public List<Subscription> findAll() {
         return subscriptionRepository.findAll();
+    }
+
+    public String node(String file) throws IOException {
+        log.debug("load file {}", file);
+        if (file.contains("index.config.js")) {
+            Path config = Path.of("/www/cat/index.config.js");
+            String json = Files.readString(config);
+            String secret = tokens.isEmpty() ? "" : ("/" + tokens.split(",")[0]);
+            json = json.replace("VOD_URL", readHostAddress("/vod" + secret));
+            json = json.replace("VOD1_URL", readHostAddress("/vod1" + secret));
+            json = json.replace("BILIBILI_URL", readHostAddress("/bilibili" + secret));
+
+            if ("index.config.js".equals(file)) {
+                return json;
+            } else if ("index.config.js.md5".equals(file)) {
+                return Utils.md5(json);
+            }
+        }
+        return Files.readString(Path.of("/www/cat", file));
+    }
+
+    public int syncCat() {
+        return Utils.execute("rm -rf /www/cat/* && unzip -q -o /cat.zip -d /www/cat && cp -r /data/cat/* /www/cat/");
     }
 
     public Map<String, Object> open() throws IOException {
@@ -451,7 +478,25 @@ public class SubscriptionService {
             json = json.replace("./", url);
         }
 
-        return convertResult(json, configKey);
+        Map<String, Object> config = convertResult(json, configKey);
+        if (configUrl == null || configUrl.isEmpty()) {
+            return handleIptv(config);
+        }
+        return config;
+    }
+
+    private Map<String, Object> handleIptv(Map<String, Object> config) {
+        if (Files.exists(Path.of("/www/tvbox/iptv.m3u"))) {
+            return config;
+        }
+
+        Object obj = config.get("lives");
+        if (obj instanceof List) {
+            List<Map<String, Object>> list = (List<Map<String, Object>>) obj;
+            list = list.stream().filter(e -> !"我的私用".equals(e.get("name"))).collect(Collectors.toList());
+            config.put("lives", list);
+        }
+        return config;
     }
 
     private void handleWhitelist(Map<String, Object> config) {
@@ -488,6 +533,44 @@ public class SubscriptionService {
             config.remove("sites-blacklist");
         } catch (Exception e) {
             log.warn("", e);
+        }
+
+        try {
+            Object obj = config.get("blacklist");
+            if (obj instanceof Map) {
+                Map<String, Object> blacklist = (Map<String, Object>) obj;
+                removeBlacklist(config, blacklist, "sites");
+                removeBlacklist(config, blacklist, "lives");
+                removeBlacklist(config, blacklist, "rules");
+                removeBlacklist(config, blacklist, "parses");
+            }
+            config.remove("blacklist");
+        } catch (Exception e) {
+            log.warn("", e);
+        }
+    }
+
+    private void removeBlacklist(Map<String, Object> config, Map<String, Object> blacklist, String type) {
+        Object obj1 = blacklist.get(type);
+        if (obj1 == null) {
+            obj1 = new ArrayList<String>(); // to remove Alist1 site
+        }
+        Object obj2 = config.get(type);
+        if (obj1 instanceof List && obj2 instanceof List) {
+            Set<String> set = new HashSet<>((List<String>) obj1);
+            if (!set.isEmpty()) {
+                String key;
+                if ("sites".equals(type)) {
+                    key = "key";
+                    set.add("Alist1");
+                } else {
+                    key = "name";
+                }
+                List<Map<String, Object>> list = (List<Map<String, Object>>) obj2;
+                list = list.stream().filter(e -> !set.contains(e.get(key))).collect(Collectors.toList());
+                config.put(type, list);
+                log.info("remove {}: {}", type, set);
+            }
         }
     }
 
@@ -554,6 +637,7 @@ public class SubscriptionService {
                             }
                         }
                     }
+                    log.debug("overrideConfig: {} {}", key, value);
                     overrideList(config, override, prefix, spider, key, keyName);
                 } else {
                     config.put(key, value);

@@ -17,6 +17,7 @@ on:
       - 'release*'
       - 'config/**'
       - 'doc/**'
+      - 'README.md'
       - 'pom.xml'
       - 'Dockerfile-v7'
       - 'Dockerfile'
