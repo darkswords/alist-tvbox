@@ -17,6 +17,8 @@ import cn.har01d.alist_tvbox.entity.ShareRepository;
 import cn.har01d.alist_tvbox.entity.Site;
 import cn.har01d.alist_tvbox.entity.SiteRepository;
 import cn.har01d.alist_tvbox.exception.BadRequestException;
+import cn.har01d.alist_tvbox.model.LoginRequest;
+import cn.har01d.alist_tvbox.model.LoginResponse;
 import cn.har01d.alist_tvbox.model.Response;
 import cn.har01d.alist_tvbox.util.Constants;
 import cn.har01d.alist_tvbox.util.Utils;
@@ -33,7 +35,6 @@ import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
@@ -47,8 +48,10 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
+import java.util.regex.Pattern;
 
+import static cn.har01d.alist_tvbox.util.Constants.ALI_SECRET;
+import static cn.har01d.alist_tvbox.util.Constants.ATV_PASSWORD;
 import static cn.har01d.alist_tvbox.util.Constants.OPEN_TOKEN_URL;
 import static cn.har01d.alist_tvbox.util.Constants.USER_AGENT;
 
@@ -119,16 +122,13 @@ public class ShareService {
             list = loadSharesFromFile();
         }
 
-        Share share = loadTacit0924(list.stream().filter(e -> e.getId() == 7000).findAny().orElse(null));
-        if (share != null) {
-            list = list.stream().filter(e -> e.getId() != 7000).collect(Collectors.toList());
-            list.add(share);
-        }
+//        Share share = loadTacit0924(list.stream().filter(e -> e.getId() == 7000).findAny().orElse(null));
+//        if (share != null) {
+//            list = list.stream().filter(e -> e.getId() != 7000).collect(Collectors.toList());
+//            list.add(share);
+//        }
 
-        share = loadLatestShare();
-        if (share != null) {
-            list.add(share);
-        }
+        list.addAll(loadLatestShare());
 
         loadAListShares(list);
         loadAListAlias();
@@ -362,9 +362,11 @@ public class ShareService {
         StringBuilder sb = new StringBuilder();
         String fileName;
         if (type == 1) {
-            fileName = "pikpakshare_list.txt";
+            fileName = "pikpak_share_list.txt";
+        } else if (type == 5) {
+            fileName = "quark_share_list.txt";
         } else {
-            fileName = "alishare_list.txt";
+            fileName = "ali_share_list.txt";
         }
 
         for (Share share : list) {
@@ -403,6 +405,7 @@ public class ShareService {
                         String sql = "INSERT INTO x_storages VALUES(%d,'%s',0,'Quark',30,'work','{\"cookie\":\"%s\",\"root_folder_id\":\"%s\",\"order_by\":\"name\",\"order_direction\":\"ASC\"}','','2023-06-15 12:00:00+00:00',0,'name','ASC','',0,'native_proxy','');";
                         int count = Utils.executeUpdate(String.format(sql, share.getId(), getMountPath(share), share.getCookie(), share.getFolderId()));
                         log.info("insert Share {} {}: {}, result: {}", share.getId(), share.getShareId(), getMountPath(share), count);
+                        Utils.executeUpdate("INSERT INTO x_setting_items VALUES('quark_cookie','" + share.getCookie() + "','','text','',1,0);");
                     } else if (share.getType() == 3) {
                         String sql = "INSERT INTO x_storages VALUES(%d,'%s',0,'115 Cloud',30,'work','{\"cookie\":\"%s\",\"qrcode_token\":\"%s\",\"root_folder_id\":\"%s\",\"page_size\":56}','','2023-06-15 12:00:00+00:00',0,'name','ASC','',0,'302_redirect','');";
                         int count = Utils.executeUpdate(String.format(sql, share.getId(), getMountPath(share), share.getCookie(), share.getPassword(), share.getFolderId()));
@@ -411,6 +414,11 @@ public class ShareService {
                         String sql = "INSERT INTO x_storages VALUES(%d,'%s',0,'Local',30,'work','{\"root_folder_path\":\"%s\",\"thumbnail\":false,\"thumb_cache_folder\":\"\",\"show_hidden\":true,\"mkdir_perm\":\"777\"}','','2023-06-15 12:00:00+00:00',0,'name','ASC','',0,'native_proxy','');";
                         int count = Utils.executeUpdate(String.format(sql, share.getId(), share.getPath(), share.getFolderId()));
                         log.info("insert Share {} {}: {}, result: {}", share.getId(), share.getPath(), share.getFolderId(), count);
+                    } else if (share.getType() == 5) {
+                        String sql = "INSERT INTO x_storages VALUES(%d,'%s',0,'QuarkShare',30,'work','{\"share_id\":\"%s\",\"share_pwd\":\"%s\",\"root_folder_id\":\"%s\"}','','2023-06-15 12:00:00+00:00',0,'name','ASC','',0,'302_redirect','');";
+                        int count = Utils.executeUpdate(String.format(sql, share.getId(), getMountPath(share), share.getShareId(), share.getPassword(), share.getFolderId()));
+                        pikpak = true;
+                        log.info("insert Share {} {}: {}, result: {}", share.getId(), share.getShareId(), getMountPath(share), count);
                     }
                     if (share.getId() < 6000) {
                         shareId = Math.max(shareId, share.getId() + 1);
@@ -441,6 +449,37 @@ public class ShareService {
         }
     }
 
+    private void updateQuarkCookieByApi(String cookie) {
+        int status = aListLocalService.getAListStatus();
+        if (status == 1) {
+            Utils.executeUpdate("INSERT INTO x_setting_items VALUES('quark_cookie','" + cookie + "','','text','',1,0);");
+            throw new BadRequestException("AList服务启动中");
+        }
+
+        String token = status == 2 ? login() : "";
+        HttpHeaders headers = new HttpHeaders();
+        headers.put("Authorization", List.of(token));
+        Map<String, Object> body = new HashMap<>();
+        body.put("key", "quark_cookie");
+        body.put("type", "text");
+        body.put("flag", 1);
+        body.put("value", cookie);
+        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
+        ResponseEntity<String> response = restTemplate.exchange("/api/admin/setting/update", HttpMethod.POST, entity, String.class);
+        log.info("updateQuarkCookieByApi {} response: {}", response.getBody());
+    }
+
+    public String login() {
+        String username = "atv";
+        String password = settingRepository.findById(ATV_PASSWORD).map(Setting::getValue).orElseThrow(BadRequestException::new);
+        LoginRequest request = new LoginRequest();
+        request.setUsername(username);
+        request.setPassword(password);
+        LoginResponse response = restTemplate.postForObject("/api/auth/login", request, LoginResponse.class);
+        log.debug("AList login response: {}", response);
+        return response.getData().getToken();
+    }
+
     private String getMountPath(Share share) {
         String path = share.getPath();
         if (path.startsWith("/")) {
@@ -454,6 +493,8 @@ public class ShareService {
             return "/\uD83C\uDF1E我的夸克网盘/" + path;
         } else if (share.getType() == 3) {
             return "/115网盘/" + path;
+        } else if (share.getType() == 5) {
+            return "/我的夸克分享/" + path;
         }
         return path;
     }
@@ -491,12 +532,36 @@ public class ShareService {
         return shareRepository.findAll(pageable);
     }
 
+    public String getQuarkCookie(String id) {
+        String aliSecret = settingRepository.findById(ALI_SECRET).map(Setting::getValue).orElse("");
+        if (aliSecret.equals(id)) {
+            return shareRepository.findByType(2).stream().findFirst().map(Share::getCookie).orElse("").trim();
+        }
+        return "";
+    }
+
+    private static final Pattern QUARK_SHARE_LINK = Pattern.compile("https://pan.quark.cn/s/(\\w+)#/list/share/(\\w+)");
+    private static final Pattern QUARK_SHARE_LINK2 = Pattern.compile("https://pan.quark.cn/s/(\\w+)#/list/share");
+
     private void parseShare(Share share) {
         if (StringUtils.isBlank(share.getShareId())) {
             return;
         }
 
         String url = share.getShareId();
+        var m = QUARK_SHARE_LINK.matcher(url);
+        if (m.find()) {
+            share.setShareId(m.group(1));
+            share.setFolderId(m.group(2));
+            return;
+        }
+
+        m = QUARK_SHARE_LINK2.matcher(url);
+        if (m.find()) {
+            share.setShareId(m.group(1));
+            return;
+        }
+
         if (url.startsWith("https://mypikpak.com/s/")) {
             url = url.substring(23);
         }
@@ -505,6 +570,9 @@ public class ShareService {
         }
         if (url.startsWith("https://www.alipan.com/s/")) {
             url = url.substring(25);
+        }
+        if (url.startsWith("https://pan.quark.cn/s/")) {
+            url = url.substring(23);
         }
 
         String[] parts = url.split("/");
@@ -540,6 +608,7 @@ public class ShareService {
                 String sql = "INSERT INTO x_storages VALUES(%d,'%s',0,'Quark',30,'work','{\"cookie\":\"%s\",\"root_folder_id\":\"%s\",\"order_by\":\"name\",\"order_direction\":\"ASC\"}','','2023-06-15 12:00:00+00:00',1,'name','ASC','',0,'native_proxy','',0);";
                 int count = Utils.executeUpdate(String.format(sql, share.getId(), getMountPath(share), share.getCookie(), share.getFolderId()));
                 log.info("insert Share {} {}: {}, result: {}", share.getId(), share.getShareId(), getMountPath(share), count);
+                updateQuarkCookieByApi(share.getCookie());
             } else if (share.getType() == 3) {
                 String sql = "INSERT INTO x_storages VALUES(%d,'%s',0,'115 Cloud',30,'work','{\"cookie\":\"%s\",\"qrcode_token\":\"%s\",\"root_folder_id\":\"%s\",\"page_size\":56}','','2023-06-15 12:00:00+00:00',1,'name','ASC','',0,'302_redirect','',0);";
                 int count = Utils.executeUpdate(String.format(sql, share.getId(), getMountPath(share), share.getCookie(), share.getPassword(), share.getFolderId()));
@@ -548,6 +617,9 @@ public class ShareService {
                 String sql = "INSERT INTO x_storages VALUES(%d,'%s',0,'Local',30,'work','{\"root_folder_path\":\"%s\",\"thumbnail\":false,\"thumb_cache_folder\":\"\",\"show_hidden\":true,\"mkdir_perm\":\"777\"}','','2023-06-15 12:00:00+00:00',1,'name','ASC','',0,'native_proxy','',0);";
                 int count = Utils.executeUpdate(String.format(sql, share.getId(), share.getPath(), share.getFolderId()));
                 log.info("insert Share {} {}: {}, result: {}", share.getId(), share.getPath(), share.getFolderId(), count);
+            } else if (share.getType() == 5) {
+                String sql = "INSERT INTO x_storages VALUES(%d,'%s',0,'QuarkShare',30,'work','{\"share_id\":\"%s\",\"share_pwd\":\"%s\",\"root_folder_id\":\"%s\"}','','2023-06-15 12:00:00+00:00',1,'name','ASC','',0,'302_redirect','',0);";
+                result = Utils.executeUpdate(String.format(sql, share.getId(), getMountPath(share), share.getShareId(), share.getPassword(), share.getFolderId()));
             }
             log.info("insert result: {}", result);
 
@@ -585,6 +657,7 @@ public class ShareService {
                 String sql = "INSERT INTO x_storages VALUES(%d,'%s',0,'Quark',30,'work','{\"cookie\":\"%s\",\"root_folder_id\":\"%s\",\"order_by\":\"name\",\"order_direction\":\"ASC\"}','','2023-06-15 12:00:00+00:00',1,'name','ASC','',0,'native_proxy','',0);";
                 int count = Utils.executeUpdate(String.format(sql, share.getId(), getMountPath(share), share.getCookie(), share.getFolderId()));
                 log.info("insert Share {} {}: {}, result: {}", share.getId(), share.getShareId(), getMountPath(share), count);
+                updateQuarkCookieByApi(share.getCookie());
             } else if (share.getType() == 3) {
                 String sql = "INSERT INTO x_storages VALUES(%d,'%s',0,'115 Cloud',30,'work','{\"cookie\":\"%s\",\"qrcode_token\":\"%s\",\"root_folder_id\":\"%s\",\"page_size\":56}','','2023-06-15 12:00:00+00:00',1,'name','ASC','',0,'302_redirect','',0);";
                 int count = Utils.executeUpdate(String.format(sql, share.getId(), getMountPath(share), share.getCookie(), share.getPassword(), share.getFolderId()));
@@ -593,6 +666,9 @@ public class ShareService {
                 String sql = "INSERT INTO x_storages VALUES(%d,'%s',0,'Local',30,'work','{\"root_folder_path\":\"%s\",\"thumbnail\":false,\"thumb_cache_folder\":\"\",\"show_hidden\":true,\"mkdir_perm\":\"777\"}','','2023-06-15 12:00:00+00:00',1,'name','ASC','',0,'native_proxy','',0);";
                 int count = Utils.executeUpdate(String.format(sql, share.getId(), share.getPath(), share.getFolderId()));
                 log.info("insert Share {} {}: {}, result: {}", share.getId(), share.getPath(), share.getFolderId(), count);
+            } else if (share.getType() == 5) {
+                String sql = "INSERT INTO x_storages VALUES(%d,'%s',0,'QuarkShare',30,'work','{\"share_id\":\"%s\",\"share_pwd\":\"%s\",\"root_folder_id\":\"%s\"}','','2023-06-15 12:00:00+00:00',1,'name','ASC','',0,'302_redirect','',0);";
+                result = Utils.executeUpdate(String.format(sql, share.getId(), getMountPath(share), share.getShareId(), share.getPassword(), share.getFolderId()));
             }
             log.info("insert result: {}", result);
 
@@ -629,7 +705,7 @@ public class ShareService {
         }
 
         if (StringUtils.isBlank(share.getFolderId())) {
-            if (share.getType() == 2 || share.getType() == 3) {
+            if (share.getType() == 2 || share.getType() == 3 || share.getType() == 5) {
                 share.setFolderId("0");
             } else if (share.getType() == 0) {
                 share.setFolderId("root");
@@ -711,9 +787,25 @@ public class ShareService {
 
     private static final String TACIT_URL = "https://ycyup.cn/tacit0924";
 
-    private Share loadLatestShare() {
+    private List<Share> loadLatestShare() {
+        List<Share> shares = new ArrayList<>();
         if (!environment.matchesProfiles("xiaoya")) {
-            return null;
+            return shares;
+        }
+
+        try {
+            if (!shareRepository.existsById(7000)) {
+                Share share = new Share();
+                share.setType(0);
+                share.setId(7000);
+                share.setShareId("wbrhqM5HkSV");
+                share.setPassword("6666");
+                share.setFolderId("6329beff6a2e552896574e26a21f370c6fa19c6a");
+                share.setPath("/\uD83C\uDE34我的阿里分享/Tacit0924");
+                shares.add(shareRepository.save(share));
+            }
+        } catch (Exception e) {
+            log.warn("", e);
         }
 
         try {
@@ -724,12 +816,26 @@ public class ShareService {
                 share.setShareId("mxAfB6eRgY4");
                 share.setFolderId("63833bb670c164d4eeb14aa09c62ee770d9112ba");
                 share.setPath("/\uD83C\uDE34我的阿里分享/近期更新");
-                return shareRepository.save(share);
+                shares.add(shareRepository.save(share));
             }
         } catch (Exception e) {
             log.warn("", e);
         }
-        return null;
+
+        try {
+            if (!shareRepository.existsById(7002)) {
+                Share share = new Share();
+                share.setType(0);
+                share.setId(7002);
+                share.setShareId("4ydLxf7VgH7");
+                share.setFolderId("6411b6c459de9db58ea5439cb7f537bbed4f4f4b");
+                share.setPath("/\uD83C\uDE34我的阿里分享/每日更新");
+                shares.add(shareRepository.save(share));
+            }
+        } catch (Exception e) {
+            log.warn("", e);
+        }
+        return shares;
     }
 
     private Share loadTacit0924(Share old) {
@@ -762,7 +868,7 @@ public class ShareService {
         return null;
     }
 
-    @Scheduled(cron = "0 20 0,9-23 * * ?")
+    //@Scheduled(cron = "0 20 0,9-23 * * ?")
     public void getTacit0924() {
         if (!environment.matchesProfiles("xiaoya")) {
             return;
