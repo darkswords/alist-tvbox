@@ -1,6 +1,8 @@
 package cn.har01d.alist_tvbox.youtube;
 
 import cn.har01d.alist_tvbox.config.AppProperties;
+import cn.har01d.alist_tvbox.exception.BadRequestException;
+import cn.har01d.alist_tvbox.model.FileNameInfo;
 import cn.har01d.alist_tvbox.model.Filter;
 import cn.har01d.alist_tvbox.model.FilterValue;
 import cn.har01d.alist_tvbox.tvbox.Category;
@@ -8,6 +10,7 @@ import cn.har01d.alist_tvbox.tvbox.CategoryList;
 import cn.har01d.alist_tvbox.tvbox.MovieDetail;
 import cn.har01d.alist_tvbox.tvbox.MovieList;
 import cn.har01d.alist_tvbox.util.Constants;
+import cn.har01d.alist_tvbox.util.DashUtils;
 import cn.har01d.alist_tvbox.util.Utils;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
@@ -19,7 +22,9 @@ import com.github.kiulian.downloader.downloader.request.RequestSearchContinuatio
 import com.github.kiulian.downloader.downloader.request.RequestSearchResult;
 import com.github.kiulian.downloader.downloader.request.RequestVideoInfo;
 import com.github.kiulian.downloader.downloader.request.RequestVideoStreamDownload;
+import com.github.kiulian.downloader.downloader.request.RequestWebpage;
 import com.github.kiulian.downloader.downloader.response.Response;
+import com.github.kiulian.downloader.downloader.response.ResponseImpl;
 import com.github.kiulian.downloader.model.Extension;
 import com.github.kiulian.downloader.model.playlist.PlaylistInfo;
 import com.github.kiulian.downloader.model.playlist.PlaylistVideoDetails;
@@ -42,6 +47,7 @@ import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 import java.io.IOException;
 import java.net.URI;
+import java.net.URLEncoder;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -53,12 +59,15 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @Slf4j
 @Service
 public class YoutubeService {
+    private static final Pattern CHANNEL_URL = Pattern.compile("href=\"https://www.youtube.com/channel/(.+?)\"");
+
     private final List<FilterValue> sorts = Arrays.asList(
             new FilterValue("原始顺序", ""),
             new FilterValue("相关性", "RELEVANCE"),
@@ -76,12 +85,42 @@ public class YoutubeService {
             new FilterValue("本年", "YEAR")
     );
 
+    private final List<FilterValue> types = Arrays.asList(
+            new FilterValue("全部", ""),
+            new FilterValue("视频", "VIDEO"),
+            new FilterValue("频道", "CHANNEL"),
+            new FilterValue("播放列表", "PLAYLIST"),
+            new FilterValue("电影", "MOVIE")
+    );
+
+    private final List<FilterValue> formats = Arrays.asList(
+            new FilterValue("全部", ""),
+            new FilterValue("HD", "HD"),
+            new FilterValue("4K", "_4K"),
+            new FilterValue("HDR", "HDR")
+    );
+
     private final MyDownloader myDownloader;
     private final YoutubeDownloader downloader;
+
     private final LoadingCache<String, VideoInfo> cache = Caffeine.newBuilder()
             .maximumSize(10)
-            .expireAfterWrite(Duration.ofSeconds(900))
+            .expireAfterAccess(Duration.ofSeconds(900))
             .build(this::getVideoInfo);
+
+    private final LoadingCache<String, PlaylistInfo> channel = Caffeine.newBuilder()
+            .maximumSize(10)
+            .expireAfterWrite(Duration.ofSeconds(900))
+            .build(this::getChannel);
+
+    private final LoadingCache<String, PlaylistInfo> playlist = Caffeine.newBuilder()
+            .maximumSize(10)
+            .expireAfterWrite(Duration.ofSeconds(900))
+            .build(this::getPlaylist);
+
+    private final LoadingCache<String, String> channelIds = Caffeine.newBuilder()
+            .maximumSize(100)
+            .build(this::getChannelId);
 
     private final AppProperties appProperties;
 
@@ -106,7 +145,7 @@ public class YoutubeService {
     }
 
     public MovieList home() {
-        return list("电影", "", "", 1);
+        return list("电影", "", "", "", "", 1);
     }
 
     public CategoryList category() throws IOException {
@@ -132,11 +171,11 @@ public class YoutubeService {
                 category.setRatio(1.33);
                 result.getCategories().add(category);
                 if (!id.contains("@")) {
-                    result.getFilters().put(category.getType_id(), List.of(new Filter("sort", "排序", sorts), new Filter("time", "时间", times)));
+                    result.getFilters().put(category.getType_id(), List.of(new Filter("sort", "排序", sorts), new Filter("time", "时间", times), new Filter("type", "类型", types), new Filter("format", "格式", formats)));
                 }
             }
         } else {
-            List<String> keywords = List.of("电影", "电视剧", "动漫", "综艺", "纪录片", "音乐", "英语", "科技", "新闻", "游戏", "风景", "旅游", "美食", "健身", "运动", "体育");
+            List<String> keywords = List.of("电影", "电视剧", "动漫", "综艺", "纪录片", "音乐", "英语", "科技", "新闻", "游戏", "风景", "旅游", "美食", "健身", "运动", "体育", "搞笑", "短剧");
             for (var name : keywords) {
                 Category category = new Category();
                 category.setType_id(name);
@@ -145,7 +184,7 @@ public class YoutubeService {
                 category.setLand(1);
                 category.setRatio(1.33);
                 result.getCategories().add(category);
-                result.getFilters().put(category.getType_id(), List.of(new Filter("sort", "排序", sorts), new Filter("time", "时间", times)));
+                result.getFilters().put(category.getType_id(), List.of(new Filter("sort", "排序", sorts), new Filter("time", "时间", times), new Filter("type", "类型", types), new Filter("format", "格式", formats)));
             }
         }
 
@@ -154,18 +193,45 @@ public class YoutubeService {
         return result;
     }
 
-    public MovieList list(String text, String sort, String time, int page) {
+    public MovieList list(String text, String sort, String time, String type, String format, int page) {
         if (text.startsWith("channel@")) {
             return getChannelVideo(text.substring(8));
+        }
+        if (text.startsWith("@")) {
+            return getChannelVideo(channelIds.get(text));
         }
         if (text.startsWith("playlist@")) {
             return getPlaylistVideo(text.substring(9));
         }
-        return search(text, sort, time, page);
+        return search(text, sort, time, type, format, page);
+    }
+
+    private String getChannelId(String name) {
+        String url = "https://www.youtube.com/" + name;
+        log.info("Get channel page: {}", url);
+        ResponseImpl<String> response = myDownloader.downloadWebpage(new RequestWebpage(url));
+        if (response.ok()) {
+            String html = response.data();
+            Matcher matcher = CHANNEL_URL.matcher(html);
+            if (matcher.find()) {
+                String id = matcher.group(1);
+                log.debug("Channel: {} {}", name, id);
+                return id;
+            }
+        }
+        throw new BadRequestException("Cannot get channel id by name " + name);
+    }
+
+    private PlaylistInfo getChannel(String id) {
+        return downloader.getChannelUploads(new RequestChannelUploads(id)).data();
+    }
+
+    private PlaylistInfo getPlaylist(String id) {
+        return downloader.getPlaylistInfo(new RequestPlaylistInfo(id)).data();
     }
 
     public MovieList getChannelVideo(String id) {
-        var info = downloader.getChannelUploads(new RequestChannelUploads(id)).data();
+        var info = channel.get(id);
         var videos = info.videos();
         List<MovieDetail> list = new ArrayList<>();
         MovieDetail video = new MovieDetail();
@@ -188,7 +254,7 @@ public class YoutubeService {
     }
 
     public MovieList getPlaylistVideo(String id) {
-        var info = downloader.getPlaylistInfo(new RequestPlaylistInfo(id)).data();
+        var info = playlist.get(id);
         var videos = info.videos();
         List<MovieDetail> list = new ArrayList<>();
         MovieDetail video = new MovieDetail();
@@ -232,19 +298,24 @@ public class YoutubeService {
 
     private final Map<String, RequestSearchContinuation> continuations = new HashMap<>();
 
-    public MovieList search(String text, String sort, String time, int page) {
+    public MovieList search(String text, String sort, String time, String type, String format, int page) {
         SearchResult searchResult;
         String query = text + "@@@" + sort;
         if (page > 1 && continuations.containsKey(query)) {
             searchResult = downloader.searchContinuation(continuations.get(query)).data();
         } else {
             var request = new RequestSearchResult(text);
-            request.filter(TypeField.VIDEO, FormatField.HD);
             if (sort != null && !sort.isEmpty()) {
                 request.sortBy(SortField.valueOf(sort));
             }
             if (time != null && !time.isEmpty()) {
                 request.filter(UploadDateField.valueOf(time));
+            }
+            if (type != null && !type.isEmpty()) {
+                request.filter(TypeField.valueOf(type));
+            }
+            if (format != null && !format.isEmpty()) {
+                request.filter(FormatField.valueOf(format));
             }
             searchResult = downloader.search(request).data();
         }
@@ -301,9 +372,14 @@ public class YoutubeService {
 
     private String fixCover(String url) {
         if (url.startsWith("//")) {
-            return "https:" + url;
+            url = "https:" + url;
         }
-        return url;
+        return ServletUriComponentsBuilder.fromCurrentRequest()
+                .scheme(appProperties.isEnableHttps() && !Utils.isLocalAddress() ? "https" : "http") // nginx https
+                .replacePath("/images")
+                .replaceQuery("url=" + URLEncoder.encode(url))
+                .build()
+                .toUriString();
     }
 
     private VideoInfo getVideoInfo(String id) {
@@ -316,9 +392,9 @@ public class YoutubeService {
         if (id.startsWith("channel@") || id.startsWith("playlist@")) {
             PlaylistInfo playlistInfo;
             if (id.startsWith("channel@")) {
-                playlistInfo = downloader.getChannelUploads(new RequestChannelUploads(id.substring(8))).data();
+                playlistInfo = channel.get(id.substring(8));
             } else {
-                playlistInfo = downloader.getPlaylistInfo(new RequestPlaylistInfo(id.substring(9))).data();
+                playlistInfo = playlist.get(id.substring(9));
             }
             MovieList result = new MovieList();
             MovieDetail movieDetail = new MovieDetail();
@@ -326,7 +402,13 @@ public class YoutubeService {
             movieDetail.setVod_name(playlistInfo.details().title());
             movieDetail.setVod_director(playlistInfo.details().author());
             movieDetail.setVod_play_from(id.startsWith("channel@") ? "频道" : "播放列表");
-            movieDetail.setVod_play_url(playlistInfo.videos().stream().map(e -> e.title().replace("#", "").replace("$", "") + "$" + e.videoId()).collect(Collectors.joining("#")));
+            List<String> list = playlistInfo.videos().stream().map(e -> e.title().replace("#", "").replace("$", "") + "$" + e.videoId()).collect(Collectors.toList());
+            String prefix = Utils.getCommonPrefix(list);
+            if (prefix.length() > 1) {
+                log.debug("Sort: {}", prefix);
+                list.sort(Comparator.comparing(FileNameInfo::new));
+            }
+            movieDetail.setVod_play_url(String.join("#", list));
             result.getList().add(movieDetail);
 
             result.setTotal(result.getList().size());
@@ -335,7 +417,7 @@ public class YoutubeService {
             return result;
         }
 
-        VideoInfo video = cache.get(id);
+        VideoInfo video = this.cache.get(id);
 
         MovieList result = new MovieList();
         MovieDetail movieDetail = new MovieDetail();
@@ -357,17 +439,17 @@ public class YoutubeService {
         return result;
     }
 
-    public Object play(String id, String client) {
+    public Object play(String token, String id, String client) {
         VideoInfo info = cache.get(id);
         List<String> urls = new ArrayList<>();
         if ("node".equals(client)) {
             info.videoFormats()
                     .stream()
-                    .filter(e -> e.videoQuality().ordinal() > 5)
+                    .filter(e -> e.videoQuality().ordinal() > 4)
                     .sorted(Comparator.comparing(VideoFormat::videoQuality).reversed())
                     .forEach(format -> {
                         urls.add(format.qualityLabel() + " " + format.extension().value());
-                        urls.add(buildProxyUrl(id, format.itag().id()));
+                        urls.add(buildProxyUrl(token, id, format.itag().id()));
                     });
         } else {
             info.videoWithAudioFormats()
@@ -375,7 +457,7 @@ public class YoutubeService {
                     .sorted(Comparator.comparing(VideoFormat::videoQuality).reversed())
                     .forEach(format -> {
                         urls.add(format.qualityLabel() + " " + format.extension().value());
-                        urls.add(buildProxyUrl(id, format.itag().id()));
+                        urls.add(buildProxyUrl(token, id, format.itag().id()));
                     });
         }
 
@@ -387,22 +469,20 @@ public class YoutubeService {
 
         Map<String, Object> result = new HashMap<>();
         result.put("parse", "0");
-        if ("com.fongmi.android.tv".equals(client)) {
+        if (DashUtils.isClientSupport(client)) {
             List<Format> videos = new ArrayList<>();
             info.videoFormats()
                     .stream()
                     .filter(Format::isAdaptive)
-                    .filter(e -> e.extension() == Extension.MPEG4)
-                    .filter(e -> e.videoQuality().ordinal() > 5)
+                    .filter(e -> e.videoQuality().ordinal() > 4)
                     .sorted(Comparator.comparing(VideoFormat::videoQuality).reversed())
                     .forEach(videos::add);
-            String mpd = getMpd(info, videos, audios);
+            String mpd = getMpd(token, info, videos, audios);
             log.debug("{}", mpd);
             String encoded = Base64.getMimeEncoder().encodeToString(mpd.getBytes());
             String url = "data:application/dash+xml;base64," + encoded.replaceAll("\\r\\n", "\n") + "\n";
-            urls.add("Dash");
-            urls.add(url);
-            result.put("url", urls);
+            result.put("format", "application/dash+xml");
+            result.put("url", url);
         } else if ("node".equals(client)) {
             result.put("url", urls);
             List<Map<String, Object>> list = new ArrayList<>();
@@ -410,7 +490,7 @@ public class YoutubeService {
                 Map<String, Object> map = new HashMap<>();
                 map.put("bit", audio.bitrate());
                 map.put("title", (audio.bitrate() / 1024) + "Kbps");
-                map.put("url", buildProxyUrl(id, audio.itag().id()));
+                map.put("url", buildProxyUrl(token, id, audio.itag().id()));
                 list.add(map);
             }
             result.put("extra", Map.of("audio", list));
@@ -423,14 +503,14 @@ public class YoutubeService {
     }
 
     public void proxy(String id, int tag, HttpServletRequest request, HttpServletResponse response) throws IOException {
-        VideoInfo video = cache.get(id);
+        VideoInfo video = this.cache.get(id);
         Format format = video.findFormatByItag(tag);
         if (format == null) {
             format = video.bestVideoWithAudioFormat();
         }
 
         String range = request.getHeader("range");
-        log.debug("format {} {} {}", format.itag().id(), format.extension().value(), range);
+        log.debug("format {} {} {} {}", format.itag().id(), format.extension().value(), format.url(), range);
         var download = new RequestVideoStreamDownload(format, response.getOutputStream());
         if (range != null) {
             download.header("range", range);
@@ -440,21 +520,26 @@ public class YoutubeService {
         downloader.downloadVideoStream(download);
     }
 
-    private String buildProxyUrl(String id, int tag) {
+    private String buildProxyUrl(String token, String id, int tag) {
+        String path = "/youtube-proxy";
+        if (StringUtils.isNotBlank(token)) {
+            path = path + "/" + token;
+        }
         return ServletUriComponentsBuilder.fromCurrentRequest()
-                .replacePath("/youtube-proxy")
+                .scheme(appProperties.isEnableHttps() && !Utils.isLocalAddress() ? "https" : "http") // nginx https
+                .replacePath(path)
                 .replaceQuery("id=" + id + "&q=" + tag)
                 .build()
                 .toUriString();
     }
 
-    private String getMedia(String id, Format media) {
+    private String getMedia(String token, String id, Format media) {
         if (media.itag().isVideo()) {
             VideoFormat video = (VideoFormat) media;
-            return getAdaptationSet(id, media, String.format("height=\"%s\" width=\"%s\" frameRate=\"%d\" sar=\"1:1\"", video.height(), video.width(), video.fps()));
+            return getAdaptationSet(token, id, media, String.format("height=\"%s\" width=\"%s\" frameRate=\"%d\" sar=\"1:1\"", video.height(), video.width(), video.fps()));
         } else if (media.itag().isAudio()) {
             AudioFormat audio = (AudioFormat) media;
-            return getAdaptationSet(id, media, String.format("numChannels=\"2\" sampleRate=\"%s\"", audio.audioSampleRate()));
+            return getAdaptationSet(token, id, media, String.format("numChannels=\"2\" sampleRate=\"%s\"", audio.audioSampleRate()));
         } else {
             return "";
         }
@@ -462,7 +547,7 @@ public class YoutubeService {
 
     private static final Pattern CODECS = Pattern.compile("codecs=\"(.+)\"");
 
-    private String getAdaptationSet(String id, Format media, String params) {
+    private String getAdaptationSet(String token, String id, Format media, String params) {
         int tag = media.itag().id();
         String type = media.mimeType().split("/")[0];
         String mimeType = media.mimeType().split(";")[0];
@@ -471,12 +556,13 @@ public class YoutubeService {
         if (m.find()) {
             codecs = m.group(1);
         }
-        String url = buildProxyUrl(id, tag).replace("&", "&amp;");
+        String url = buildProxyUrl(token, id, tag).replace("&", "&amp;");
         return String.format(
                 "<AdaptationSet>\n" +
                         "<ContentComponent contentType=\"%s\"/>\n" +
                         "<Representation id=\"%d\" bandwidth=\"%s\" codecs=\"%s\" mimeType=\"%s\" %s startWithSAP=\"%d\">\n" +
                         "<BaseURL>%s</BaseURL>\n" +
+                        getSegmentBase(media) +
                         "</Representation>\n" +
                         "</AdaptationSet>\n",
                 type,
@@ -485,7 +571,16 @@ public class YoutubeService {
         );
     }
 
-    private String getMpd(VideoInfo info, List<Format> videos, List<Format> audios) {
+    private String getSegmentBase(Format media) {
+        if (media.initRange() == null || media.indexRange() == null) {
+            return "";
+        }
+        return "<SegmentBase indexRange=\"" + media.indexRange().getStart() + "-" + media.indexRange().getEnd() + "\">\n" +
+                "<Initialization range=\"" + media.initRange().getStart() + "-" + media.initRange().getEnd() + "\"/>\n" +
+                "</SegmentBase>\n";
+    }
+
+    private String getMpd(String token, VideoInfo info, List<Format> videos, List<Format> audios) {
         String id = info.details().videoId();
         return String.format(
                 "<MPD xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns=\"urn:mpeg:dash:schema:mpd:2011\" xsi:schemaLocation=\"urn:mpeg:dash:schema:mpd:2011 DASH-MPD.xsd\" type=\"static\" mediaPresentationDuration=\"PT%sS\" minBufferTime=\"PT1.5S\" profiles=\"urn:mpeg:dash:profile:isoff-on-demand:2011\">\n" +
@@ -496,7 +591,7 @@ public class YoutubeService {
                         "</MPD>",
                 info.details().lengthSeconds(),
                 info.details().lengthSeconds(),
-                videos.stream().map(e -> getMedia(id, e)).collect(Collectors.joining()),
-                audios.stream().map(e -> getMedia(id, e)).collect(Collectors.joining()));
+                videos.stream().map(e -> getMedia(token, id, e)).collect(Collectors.joining()),
+                audios.stream().map(e -> getMedia(token, id, e)).collect(Collectors.joining()));
     }
 }

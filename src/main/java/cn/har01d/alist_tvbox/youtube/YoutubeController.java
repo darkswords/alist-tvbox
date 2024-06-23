@@ -10,7 +10,6 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.io.IOException;
-import java.net.URLDecoder;
 
 @Slf4j
 @RestController
@@ -24,26 +23,25 @@ public class YoutubeController {
     }
 
     @GetMapping("/youtube")
-    public Object browse(String ids, String wd, String sort, String time, String t, @RequestParam(required = false, defaultValue = "1") Integer pg,HttpServletRequest request) throws IOException {
-        return browse("", ids, wd, sort, time, t, pg, request);
+    public Object browse(String ids, String wd, String sort, String time, String type, String format, String t, @RequestParam(required = false, defaultValue = "1") Integer pg) throws IOException {
+        return browse("", ids, wd, sort, time, type, format, t, pg);
     }
 
     @GetMapping("/youtube/{token}")
-    public Object browse(@PathVariable String token, String ids, String wd, String sort, String time, String t, @RequestParam(required = false, defaultValue = "1") Integer pg,HttpServletRequest request) throws IOException {
+    public Object browse(@PathVariable String token, String ids, String wd, String sort, String time, String type, String format, String t, @RequestParam(required = false, defaultValue = "1") Integer pg) throws IOException {
         subscriptionService.checkToken(token);
-        log.debug("{} {} {}", request.getMethod(), request.getRequestURI(), decodeUrl(request.getQueryString()));
         if (ids != null && !ids.isEmpty()) {
             if (ids.equals("recommend")) {
                 return youtubeService.home();
             }
             return youtubeService.detail(ids);
         } else if (wd != null && !wd.isEmpty()) {
-            return youtubeService.search(wd, sort, time, pg);
+            return youtubeService.search(wd, sort, time, type, format, pg);
         } else if (t != null && !t.isEmpty()) {
             if (t.equals("0")) {
                 return youtubeService.home();
             }
-            return youtubeService.list(t, sort, time, pg);
+            return youtubeService.list(t, sort, time, type, format, pg);
         }
         return youtubeService.category();
     }
@@ -58,8 +56,7 @@ public class YoutubeController {
         subscriptionService.checkToken(token);
 
         String client = request.getHeader("X-CLIENT");
-        log.debug("{} {} {} {}", request.getMethod(), request.getRequestURI(), decodeUrl(request.getQueryString()), client);
-        return youtubeService.play(id, client);
+        return youtubeService.play(token, id, client);
     }
 
     @GetMapping("/youtube-proxy")
@@ -71,19 +68,6 @@ public class YoutubeController {
     public void proxy(@PathVariable String token, String id, @RequestParam(defaultValue = "18") int q, HttpServletRequest request, HttpServletResponse response) throws IOException {
         subscriptionService.checkToken(token);
 
-        log.debug("{} {} {}", request.getMethod(), request.getRequestURI(), decodeUrl(request.getQueryString()));
         youtubeService.proxy(id, q, request, response);
-    }
-
-    private String decodeUrl(String text) {
-        if (text == null || text.isEmpty()) {
-            return "";
-        }
-
-        try {
-            return URLDecoder.decode(text, "UTF-8");
-        } catch (Exception e) {
-            return text;
-        }
     }
 }

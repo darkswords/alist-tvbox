@@ -6,6 +6,7 @@ import cn.har01d.alist_tvbox.entity.Account;
 import cn.har01d.alist_tvbox.entity.AccountRepository;
 import cn.har01d.alist_tvbox.entity.Setting;
 import cn.har01d.alist_tvbox.entity.SettingRepository;
+import cn.har01d.alist_tvbox.entity.Share;
 import cn.har01d.alist_tvbox.entity.ShareRepository;
 import cn.har01d.alist_tvbox.entity.Site;
 import cn.har01d.alist_tvbox.entity.SiteRepository;
@@ -118,7 +119,7 @@ public class SubscriptionService {
             sub = new Subscription();
             sub.setSid("1");
             sub.setName("饭太硬");
-            sub.setUrl("http://饭太硬.top/tv");
+            sub.setUrl("http://饭太硬.com/tv");
             subscriptionRepository.save(sub);
             sub = new Subscription();
             sub.setSid("2");
@@ -131,13 +132,20 @@ public class SubscriptionService {
             fixUrl(list);
             fixSid(list);
             fixId(list);
-            if (subscriptionRepository.findBySid("pg").isEmpty()) {
-                Subscription sub = new Subscription();
-                sub.setSid("pg");
-                sub.setName("PG");
-                sub.setUrl("/pg/jsm.json");
-                subscriptionRepository.save(sub);
-            }
+        }
+        if (subscriptionRepository.findBySid("pg").isEmpty()) {
+            Subscription sub = new Subscription();
+            sub.setSid("pg");
+            sub.setName("PG");
+            sub.setUrl("/pg/jsm.json");
+            subscriptionRepository.save(sub);
+        }
+        if (subscriptionRepository.findBySid("ok").isEmpty()) {
+            Subscription sub = new Subscription();
+            sub.setSid("ok");
+            sub.setName("OK");
+            sub.setUrl("http://ok321.top/ok");
+            subscriptionRepository.save(sub);
         }
     }
 
@@ -145,6 +153,9 @@ public class SubscriptionService {
         for (Subscription sub : list) {
             if ("https://tvbox.cainisi.cf".equals(sub.getUrl())) {
                 sub.setUrl("https://tv.菜妮丝.top");
+                subscriptionRepository.save(sub);
+            } else if ("http://饭太硬.top/tv".equals(sub.getUrl())) {
+                sub.setUrl("http://饭太硬.com/tv");
                 subscriptionRepository.save(sub);
             }
         }
@@ -206,7 +217,7 @@ public class SubscriptionService {
         throw new BadRequestException();
     }
 
-    public String getToken() {
+    public String getTokens() {
         return tokens;
     }
 
@@ -246,6 +257,13 @@ public class SubscriptionService {
             json = json.replace("VOD1_URL", readHostAddress("/vod1" + secret));
             json = json.replace("BILIBILI_URL", readHostAddress("/bilibili" + secret));
             json = json.replace("YOUTUBE_URL", readHostAddress("/youtube" + secret));
+            String ali = accountRepository.getFirstByMasterTrue().map(Account::getRefreshToken).orElse("");
+            json = json.replace("ALI_TOKEN", ali);
+            ali = accountRepository.getFirstByMasterTrue().map(Account::getOpenToken).orElse("");
+            json = json.replace("ALI_OPEN_TOKEN", ali);
+
+            String quarkCookie = shareRepository.findByType(2).stream().findFirst().map(Share::getCookie).orElse("");
+            json = json.replace("QUARK_COOKIE", quarkCookie);
 
             if ("index.config.js".equals(file)) {
                 return json;
@@ -257,7 +275,9 @@ public class SubscriptionService {
     }
 
     public int syncCat() {
-        return Utils.execute("rm -rf /www/cat/* && unzip -q -o /cat.zip -d /www/cat && cp -r /data/cat/* /www/cat/");
+        Utils.execute("rm -rf /www/pg/* && unzip -q -o /pg.zip -d /www/pg && cp -r /data/pg/* /www/pg/");
+        Utils.execute("rm -rf /www/cat/* && unzip -q -o /cat.zip -d /www/cat && cp -r /data/cat/* /www/cat/");
+        return 0;
     }
 
     public Map<String, Object> open() throws IOException {
@@ -455,14 +475,14 @@ public class SubscriptionService {
         List<Map<String, Object>> list = (List<Map<String, Object>>) config.get("sites");
         String secret = settingRepository.findById(ALI_SECRET).map(Setting::getValue).orElseThrow();
         String tokenUrl = shareRepository.countByType(0) > 0 ? readHostAddress("/ali/token/" + secret) : null;
-        //String cookieUrl = shareRepository.countByType(2) > 0 ? readHostAddress("/quark/cookie/" + secret) : null;
+        String cookieUrl = shareRepository.countByType(2) > 0 ? readHostAddress("/quark/cookie/" + secret) : null;
         for (Map<String, Object> site : list) {
             Object obj = site.get("ext");
             if (obj instanceof String) {
                 String ext = (String) obj;
                 String text = ext;
                 if (tokenUrl != null) {
-                    text.replace("http://127.0.0.1:9978/file/tvfan/token.txt", tokenUrl)
+                    text = text.replace("http://127.0.0.1:9978/file/tvfan/token.txt", tokenUrl)
                             .replace("http://127.0.0.1:9978/file/tvfan/tokengo.txt", tokenUrl)
                             .replace("http://127.0.0.1:9978/file/tvbox/token.txt", tokenUrl)
                             .replace("http://127.0.0.1:9978/file/cainisi/token.txt", tokenUrl)
@@ -473,13 +493,19 @@ public class SubscriptionService {
                     site.put("ext", text);
                 }
             } else if (obj instanceof Map) {
-//                Map map = (Map) obj;
-//                if (tokenUrl != null && map.containsKey("aliToken")) {
-//                    map.put("aliToken", tokenUrl); // tvfan/token.txt
-//                }
-//                if (cookieUrl != null && map.containsKey("quarkCookie")) {
-//                    map.put("quarkCookie", cookieUrl); // tvfan/cookie.txt
-//                }
+                Map map = (Map) obj;
+                if (tokenUrl != null && "file://TV/ali_token.txt".equals(map.get("token"))) {
+                    map.put("token", tokenUrl);
+                }
+                if (cookieUrl != null && "file://TV/quark_cookie.txt".equals(map.get("cookie"))) {
+                    map.put("cookie", cookieUrl);
+                }
+                if (tokenUrl != null && map.containsKey("aliToken")) {
+                    map.put("aliToken", tokenUrl); // tvfan/token.txt
+                }
+                if (cookieUrl != null && map.containsKey("quarkCookie")) {
+                    map.put("quarkCookie", cookieUrl); // tvfan/cookie.txt
+                }
             }
         }
     }
@@ -883,15 +909,15 @@ public class SubscriptionService {
         site.put("searchable", 1);
         site.put("quickSearch", 1);
         site.put("filterable", 1);
-        Map<String, Object> style = new HashMap<>();
-        style.put("type", "rect");
         if ("csp_BiliBili".equals(key) || "csp_Youtube".equals(key)) {
+            Map<String, Object> style = new HashMap<>();
+            style.put("type", "rect");
             style.put("ratio", 1.597);
+            site.put("style", style);
         }
         if ("csp_Youtube".equals(key)) {
             site.put("playerType", 2);
         }
-        site.put("style", style);
         return site;
     }
 
@@ -994,6 +1020,7 @@ public class SubscriptionService {
             Matcher matcher = pattern.matcher(content);
             if (matcher.find()) {
                 content = content.substring(content.indexOf(matcher.group()) + 10);
+                content = content.replace(" ", "");
                 content = new String(Base64.getDecoder().decode(content));
             }
 
@@ -1095,6 +1122,7 @@ public class SubscriptionService {
                 }
                 json = json.replace("DOCKER_ADDRESS/tvbox/my.json", baseUrl + id);
                 json = json.replace("ATV_ADDRESS", readHostAddress());
+                json = json.replace("TOKEN", StringUtils.isBlank(token) ? "-" : token);
                 return json;
             }
 

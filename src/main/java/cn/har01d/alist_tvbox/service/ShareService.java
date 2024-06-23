@@ -1,7 +1,6 @@
 package cn.har01d.alist_tvbox.service;
 
 import cn.har01d.alist_tvbox.config.AppProperties;
-import cn.har01d.alist_tvbox.dto.AliFileList;
 import cn.har01d.alist_tvbox.dto.OpenApiDto;
 import cn.har01d.alist_tvbox.dto.SharesDto;
 import cn.har01d.alist_tvbox.entity.AListAlias;
@@ -49,11 +48,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import static cn.har01d.alist_tvbox.util.Constants.ALI_SECRET;
 import static cn.har01d.alist_tvbox.util.Constants.ATV_PASSWORD;
 import static cn.har01d.alist_tvbox.util.Constants.OPEN_TOKEN_URL;
-import static cn.har01d.alist_tvbox.util.Constants.USER_AGENT;
 
 @Slf4j
 @Service
@@ -122,12 +121,7 @@ public class ShareService {
             list = loadSharesFromFile();
         }
 
-//        Share share = loadTacit0924(list.stream().filter(e -> e.getId() == 7000).findAny().orElse(null));
-//        if (share != null) {
-//            list = list.stream().filter(e -> e.getId() != 7000).collect(Collectors.toList());
-//            list.add(share);
-//        }
-
+        list = list.stream().filter(e -> e.getId() < 7000).collect(Collectors.toList());
         list.addAll(loadLatestShare());
 
         loadAListShares(list);
@@ -785,8 +779,6 @@ public class ShareService {
         return response.getBody();
     }
 
-    private static final String TACIT_URL = "https://ycyup.cn/tacit0924";
-
     private List<Share> loadLatestShare() {
         List<Share> shares = new ArrayList<>();
         if (!environment.matchesProfiles("xiaoya")) {
@@ -794,166 +786,41 @@ public class ShareService {
         }
 
         try {
-            if (!shareRepository.existsById(7000)) {
-                Share share = new Share();
-                share.setType(0);
-                share.setId(7000);
-                share.setShareId("wbrhqM5HkSV");
-                share.setPassword("6666");
-                share.setFolderId("6329beff6a2e552896574e26a21f370c6fa19c6a");
-                share.setPath("/\uD83C\uDE34我的阿里分享/Tacit0924");
-                shares.add(shareRepository.save(share));
-            }
+            Share share = new Share();
+            share.setType(0);
+            share.setId(7000);
+            share.setShareId("cdqCsAWD9wC");
+            share.setPassword("6666");
+            share.setFolderId("635151fc53641440ad95492c8174c57584c56f68");
+            share.setPath("/\uD83C\uDE34我的阿里分享/Tacit0924");
+            shares.add(shareRepository.save(share));
         } catch (Exception e) {
             log.warn("", e);
         }
 
         try {
-            if (!shareRepository.existsById(7001)) {
-                Share share = new Share();
-                share.setType(0);
-                share.setId(7001);
-                share.setShareId("mxAfB6eRgY4");
-                share.setFolderId("63833bb670c164d4eeb14aa09c62ee770d9112ba");
-                share.setPath("/\uD83C\uDE34我的阿里分享/近期更新");
-                shares.add(shareRepository.save(share));
-            }
+            Share share = new Share();
+            share.setType(0);
+            share.setId(7001);
+            share.setShareId("mxAfB6eRgY4");
+            share.setFolderId("63833bb670c164d4eeb14aa09c62ee770d9112ba");
+            share.setPath("/\uD83C\uDE34我的阿里分享/近期更新");
+            shares.add(shareRepository.save(share));
         } catch (Exception e) {
             log.warn("", e);
         }
 
         try {
-            if (!shareRepository.existsById(7002)) {
-                Share share = new Share();
-                share.setType(0);
-                share.setId(7002);
-                share.setShareId("4ydLxf7VgH7");
-                share.setFolderId("6411b6c459de9db58ea5439cb7f537bbed4f4f4b");
-                share.setPath("/\uD83C\uDE34我的阿里分享/每日更新");
-                shares.add(shareRepository.save(share));
-            }
+            Share share = new Share();
+            share.setType(0);
+            share.setId(7002);
+            share.setShareId("4ydLxf7VgH7");
+            share.setFolderId("6411b6c459de9db58ea5439cb7f537bbed4f4f4b");
+            share.setPath("/\uD83C\uDE34我的阿里分享/每日更新");
+            shares.add(shareRepository.save(share));
         } catch (Exception e) {
             log.warn("", e);
         }
         return shares;
-    }
-
-    private Share loadTacit0924(Share old) {
-        if (!environment.matchesProfiles("xiaoya")) {
-            return null;
-        }
-
-        try {
-            String link = restTemplate1.getForObject(TACIT_URL, String.class);
-            String[] parts = link.split(":");
-            link = parts[0];
-            String code = parts.length == 1 ? "" : parts[1];
-            if (old != null && old.getShareId().equals(link) && old.getPassword().equals(code)) {
-                return null;
-            }
-            log.info("Tacit0924 link: {} {}", link, code);
-            String shareToken = getShareToken(link, code);
-            String folder = getFolderId(link, shareToken);
-            Share share = new Share();
-            share.setType(0);
-            share.setId(7000);
-            share.setShareId(link);
-            share.setPassword(code);
-            share.setFolderId(folder);
-            share.setPath("/\uD83C\uDE34我的阿里分享/Tacit0924");
-            return shareRepository.save(share);
-        } catch (Exception e) {
-            log.warn("", e);
-        }
-        return null;
-    }
-
-    //@Scheduled(cron = "0 20 0,9-23 * * ?")
-    public void getTacit0924() {
-        if (!environment.matchesProfiles("xiaoya")) {
-            return;
-        }
-
-        try {
-            String link = restTemplate1.getForObject(TACIT_URL, String.class);
-            String[] parts = link.split(":");
-            link = parts[0];
-            String code = parts.length == 1 ? "" : parts[1];
-            log.info("Tacit0924 link: {} {}", link, code);
-            String shareId = shareRepository.findById(7000).map(Share::getShareId).orElse("");
-            if (!shareId.equals(link)) {
-                // 验证远程链接有效性
-                String shareToken = getShareToken(link, code);
-                if (StringUtils.isBlank(shareToken)) {
-                    return;
-                }
-                String folder = getFolderId(link, shareToken);
-                Share share = new Share();
-                share.setType(0);
-                share.setId(7000);
-                share.setShareId(link);
-                share.setPassword(code);
-                share.setFolderId(folder);
-                share.setPath("/\uD83C\uDE34我的阿里分享/Tacit0924");
-                update(7000, share);
-            }
-        } catch (Exception e) {
-            log.warn("", e);
-        }
-    }
-
-    private String getFolderId(String shareId, String shareToken) {
-        String fileId = "root";
-        try {
-            Thread.sleep(1500);
-            fileId = getFileId(shareId, shareToken, fileId);
-            Thread.sleep(1500);
-            fileId = getFileId(shareId, shareToken, fileId);
-        } catch (Exception e) {
-            log.warn("", e);
-        }
-        return fileId;
-    }
-
-    private String getShareToken(String shareId, String code) {
-        HttpHeaders headers = new HttpHeaders();
-        headers.put("X-Canary", List.of("client=web,app=share,version=v2.3.1"));
-        headers.put("X-Device-Id", List.of("da6d23f39e3e4673b56aaa204caddba8"));
-        Map<String, Object> body = new HashMap<>();
-        body.put("share_id", shareId);
-        body.put("share_pwd", code);
-        HttpEntity<Map> entity = new HttpEntity<>(body, headers);
-        ResponseEntity<Map> response = restTemplate1.exchange("https://api.aliyundrive.com/v2/share_link/get_share_token", HttpMethod.POST, entity, Map.class);
-        log.debug("getShareToken {}", response.getBody());
-        return (String) response.getBody().get("share_token");
-    }
-
-    private String getFileId(String shareId, String shareToken, String parentId) {
-        var response = listFiles(shareId, shareToken, parentId);
-        for (var item : response.getItems()) {
-            if ("folder".equals(item.getType())) {
-                return item.getFileId();
-            }
-        }
-        return "root";
-    }
-
-    private AliFileList listFiles(String shareId, String shareToken, String parentId) {
-        HttpHeaders headers = new HttpHeaders();
-        headers.put("X-Canary", List.of("client=web,app=share,version=v2.3.1"));
-        headers.put("X-Device-Id", List.of("da6d23f39e3e4673b56aaa204caddba8"));
-        headers.put("X-Share-Token", List.of(shareToken));
-        headers.put("Referer", List.of("https://www.alipan.com/"));
-        headers.put("User-Agent", List.of(USER_AGENT));
-        Map<String, Object> body = new HashMap<>();
-        body.put("share_id", shareId);
-        body.put("limit", 200);
-        body.put("order_by", "name");
-        body.put("order_direction", "ASC");
-        body.put("parent_file_id", parentId);
-        HttpEntity<Object> entity = new HttpEntity<>(body, headers);
-        ResponseEntity<AliFileList> response = restTemplate1.exchange("https://api.aliyundrive.com/adrive/v2/file/list_by_share", HttpMethod.POST, entity, AliFileList.class);
-        log.debug("listFiles {}", response.getBody());
-        return response.getBody();
     }
 }
