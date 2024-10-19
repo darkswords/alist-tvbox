@@ -161,7 +161,7 @@
       </el-col>
     </el-row>
 
-    <el-dialog v-model="dialogVisible" title="高级功能" width="50%">
+    <el-dialog id="adv" v-model="dialogVisible" title="高级设置" width="60%">
       <el-form label-width="180px">
         <el-form-item label="开放Token认证URL">
           <el-select v-model="openTokenUrl" class="m-2" placeholder="Select">
@@ -180,11 +180,11 @@
           </el-select>
           <el-input v-model="openTokenUrl"/>
         </el-form-item>
-        <el-form-item label="APP ID">
-          <el-input v-model="apiClientId" type="text"/>
+        <el-form-item label="Client ID">
+          <el-input v-model="apiClientId" type="text" placeholder="默认不要填写"/>
         </el-form-item>
-        <el-form-item label="APP Secret">
-          <el-input v-model="apiClientSecret" type="password" show-password/>
+        <el-form-item label="Client Secret">
+          <el-input v-model="apiClientSecret" type="password" show-password placeholder="默认不要填写"/>
         </el-form-item>
         <el-form-item>
           <el-button type="primary" @click="updateOpenTokenUrl">更新</el-button>
@@ -210,6 +210,9 @@
           </a><span class="hint"></span>
           <a :href="currentUrl + '/115/cookie/' + aliSecret" target="_blank">
             115 Cookie
+          </a><span class="hint"></span>
+          <a :href="currentUrl + '/bili/cookie/' + aliSecret" target="_blank">
+             B站 Cookie
           </a>
         </el-form-item>
         <el-form-item label="订阅替换阿里token地址">
@@ -361,7 +364,6 @@ const indexRemoteVersion = ref('')
 const movieVersion = ref(0)
 const movieRemoteVersion = ref(0)
 const cachedMovieVersion = ref(0)
-const fileExpireHour = ref(6)
 const deleteDelayTime = ref(900)
 const aListStartTime = ref('')
 const openTokenUrl = ref('')
@@ -523,8 +525,7 @@ onMounted(() => {
     form.value.enabledToken = !!data.token
     scheduleTime.value = data.schedule_time || new Date(2023, 6, 20, 9, 0)
     aListStartTime.value = data.alist_start_time
-    fileExpireHour.value = +data.file_expire_hour || 6
-    deleteDelayTime.value = +data.delete_delay_time || 900
+    deleteDelayTime.value = +data.delete_delay_time
     movieVersion.value = data.movie_version
     indexVersion.value = data.index_version
     dockerVersion.value = data.docker_version
@@ -611,5 +612,17 @@ onUnmounted(() => {
 
 .changelog {
   color: #67c23a;
+}
+
+@media only screen and (max-width: 1500px) {
+  #adv {
+    width: 80%;
+  }
+}
+
+@media only screen and (max-width: 960px) {
+  #adv {
+    width: 96%;
+  }
 }
 </style>

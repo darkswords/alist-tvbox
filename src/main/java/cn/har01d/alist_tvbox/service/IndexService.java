@@ -193,7 +193,6 @@ public class IndexService {
         } catch (Exception e) {
             log.debug("", e);
         }
-        Utils.execute("bash /downloadPg.sh");
         return "";
     }
 
@@ -202,7 +201,7 @@ public class IndexService {
         try {
             remote = restTemplate.getForObject("http://docker.xiaoya.pro/version.txt", String.class);
         } catch (ResourceAccessException e) {
-            remote = restTemplate.getForObject("http://data.har01d.cn/version.txt", String.class);
+            remote = restTemplate.getForObject("http://har01d.org/version.txt", String.class);
         }
         return Utils.trim(remote);
     }
