@@ -6,6 +6,7 @@ import cn.har01d.alist_tvbox.dto.TokenDto;
 import cn.har01d.alist_tvbox.entity.Account;
 import cn.har01d.alist_tvbox.entity.AccountRepository;
 import cn.har01d.alist_tvbox.entity.EmbyRepository;
+import cn.har01d.alist_tvbox.entity.JellyfinRepository;
 import cn.har01d.alist_tvbox.entity.PanAccount;
 import cn.har01d.alist_tvbox.entity.PanAccountRepository;
 import cn.har01d.alist_tvbox.entity.Setting;
@@ -79,6 +80,7 @@ public class SubscriptionService {
     private final ShareRepository shareRepository;
     private final PanAccountRepository panAccountRepository;
     private final EmbyRepository embyRepository;
+    private final JellyfinRepository jellyfinRepository;
     private final AListLocalService aListLocalService;
     private final ConfigFileService configFileService;
 
@@ -96,6 +98,7 @@ public class SubscriptionService {
                                ShareRepository shareRepository,
                                PanAccountRepository panAccountRepository,
                                EmbyRepository embyRepository,
+                               JellyfinRepository jellyfinRepository,
                                AListLocalService aListLocalService,
                                ConfigFileService configFileService) {
         this.environment = environment;
@@ -113,6 +116,7 @@ public class SubscriptionService {
         this.shareRepository = shareRepository;
         this.panAccountRepository = panAccountRepository;
         this.embyRepository = embyRepository;
+        this.jellyfinRepository = jellyfinRepository;
         this.aListLocalService = aListLocalService;
         this.configFileService = configFileService;
     }
@@ -286,6 +290,10 @@ public class SubscriptionService {
             String quarkCookie = panAccountRepository.findByTypeAndMasterTrue(DriverType.QUARK).map(PanAccount::getCookie).orElse("");
             json = json.replace("QUARK_COOKIE", quarkCookie);
 
+            String address = readHostAddress();
+            json = json.replace("DOCKER_ADDRESS", address);
+            json = json.replace("ATV_ADDRESS", address);
+
             if ("index.config.js".equals(file)) {
                 return json;
             } else if ("index.config.js.md5".equals(file)) {
@@ -407,6 +415,9 @@ public class SubscriptionService {
         json = json.replace("阿里token", ali);
         String token = siteRepository.findById(1).map(Site::getToken).orElse("");
         json = json.replace("ALIST_TOKEN", token);
+        String address = readHostAddress();
+        json = json.replace("DOCKER_ADDRESS", address);
+        json = json.replace("ATV_ADDRESS", address);
         return json;
     }
 
@@ -947,6 +958,27 @@ public class SubscriptionService {
                 Map<String, Object> site = buildSite(token, "csp_Emby", "Emby");
                 sites.add(id++, site);
                 log.debug("add Emby site: {}", site);
+            }
+        } catch (Exception e) {
+            log.warn("", e);
+        }
+
+        try {
+            if (jellyfinRepository.count() > 0) {
+                Map<String, Object> site = buildSite(token, "csp_Jellyfin", "Jellyfin");
+                sites.add(id++, site);
+                log.debug("add Jellyfin site: {}", site);
+            }
+        } catch (Exception e) {
+            log.warn("", e);
+        }
+
+        try {
+            boolean enabled = settingRepository.findById("enable_live").map(Setting::getValue).orElse("").equals("true");
+            if (enabled) {
+                Map<String, Object> site = buildSite(token, "csp_Live", "网络直播");
+                sites.add(id++, site);
+                log.debug("add Live site: {}", site);
             }
         } catch (Exception e) {
             log.warn("", e);
