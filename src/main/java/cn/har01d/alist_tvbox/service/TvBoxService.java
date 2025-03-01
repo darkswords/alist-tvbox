@@ -59,7 +59,7 @@ public class TvBoxService {
     private final AListAliasRepository aliasRepository;
     private final ShareRepository shareRepository;
     private final MetaRepository metaRepository;
-    private final PanAccountRepository panAccountRepository;
+    private final DriverAccountRepository panAccountRepository;
 
     private final AListService aListService;
     private final IndexService indexService;
@@ -124,7 +124,7 @@ public class TvBoxService {
                         ProxyService proxyService,
                         ObjectMapper objectMapper,
                         Environment environment,
-                        PanAccountRepository panAccountRepository,
+                        DriverAccountRepository panAccountRepository,
                         PikPakAccountRepository pikPakAccountRepository) {
         this.accountRepository = accountRepository;
         this.aliasRepository = aliasRepository;
@@ -395,7 +395,7 @@ public class TvBoxService {
         }
     }
 
-    private Object getMountPath(PanAccount account) {
+    private Object getMountPath(DriverAccount account) {
         if (account.getName().startsWith("/")) {
             return account.getName();
         }
@@ -1188,7 +1188,7 @@ public class TvBoxService {
 
             if ("com.fongmi.android.tv".equals(client)) {
                 url = fixHttp(fsDetail.getRawUrl());
-            } else if ((fsDetail.getProvider().contains("Aliyundrive") && !fsDetail.getRawUrl().contains("115.com"))
+            } else if ((fsDetail.getProvider().contains("Aliyundrive") && !fsDetail.getRawUrl().contains("115cdn.net"))
                     || (("open".equals(client) || "node".equals(client)) && fsDetail.getProvider().contains("115"))) {
                 url = buildProxyUrl(site, path, fsDetail.getSign());
                 log.info("play url: {}", url);
@@ -1201,7 +1201,7 @@ public class TvBoxService {
 
         if (url.contains("xunlei.com")) {
             result.put("header", "{\"User-Agent\":\"Dalvik/2.1.0 (Linux; U; Android 12; M2004J7AC Build/SP1A.210812.016)\"}");
-        } else if (url.contains("115.com")) {
+        } else if (url.contains("115cdn.net")) {
             var account = panAccountRepository.findByTypeAndMasterTrue(DriverType.PAN115).orElseThrow();
             if (account.isUseProxy()) {
                 url = proxyService.generateProxyUrl(url);

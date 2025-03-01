@@ -5,10 +5,10 @@ import cn.har01d.alist_tvbox.domain.DriverType;
 import cn.har01d.alist_tvbox.dto.TokenDto;
 import cn.har01d.alist_tvbox.entity.Account;
 import cn.har01d.alist_tvbox.entity.AccountRepository;
+import cn.har01d.alist_tvbox.entity.DriverAccount;
+import cn.har01d.alist_tvbox.entity.DriverAccountRepository;
 import cn.har01d.alist_tvbox.entity.EmbyRepository;
 import cn.har01d.alist_tvbox.entity.JellyfinRepository;
-import cn.har01d.alist_tvbox.entity.PanAccount;
-import cn.har01d.alist_tvbox.entity.PanAccountRepository;
 import cn.har01d.alist_tvbox.entity.Setting;
 import cn.har01d.alist_tvbox.entity.SettingRepository;
 import cn.har01d.alist_tvbox.entity.ShareRepository;
@@ -79,7 +79,7 @@ public class SubscriptionService {
     private final AccountRepository accountRepository;
     private final SiteRepository siteRepository;
     private final ShareRepository shareRepository;
-    private final PanAccountRepository panAccountRepository;
+    private final DriverAccountRepository panAccountRepository;
     private final EmbyRepository embyRepository;
     private final JellyfinRepository jellyfinRepository;
     private final AListLocalService aListLocalService;
@@ -97,7 +97,7 @@ public class SubscriptionService {
                                AccountRepository accountRepository,
                                SiteRepository siteRepository,
                                ShareRepository shareRepository,
-                               PanAccountRepository panAccountRepository,
+                               DriverAccountRepository panAccountRepository,
                                EmbyRepository embyRepository,
                                JellyfinRepository jellyfinRepository,
                                AListLocalService aListLocalService,
@@ -288,7 +288,7 @@ public class SubscriptionService {
             ali = accountRepository.getFirstByMasterTrue().map(Account::getOpenToken).orElse("");
             json = json.replace("ALI_OPEN_TOKEN", ali);
 
-            String quarkCookie = panAccountRepository.findByTypeAndMasterTrue(DriverType.QUARK).map(PanAccount::getCookie).orElse("");
+            String quarkCookie = panAccountRepository.findByTypeAndMasterTrue(DriverType.QUARK).map(DriverAccount::getCookie).orElse("");
             json = json.replace("QUARK_COOKIE", quarkCookie);
 
             String address = readHostAddress();
@@ -582,9 +582,17 @@ public class SubscriptionService {
 //        }
 
         String json = loadConfigJson(configUrl);
-        if (json != null) {
-            String url = fixUrl(apiUrl) + "/";
-            json = json.replace("./", url);
+        URL api = fixUrl(apiUrl);
+        if (json != null && api != null) {
+            String url = resolveUrl(api, "../");
+            if (url != null) {
+                json = json.replace("../", url);
+            }
+
+            url = resolveUrl(api, "./");
+            if (url != null) {
+                json = json.replace("./", url);
+            }
         }
 
         Map<String, Object> config = convertResult(json, configKey);
@@ -693,7 +701,7 @@ public class SubscriptionService {
             json = json.replace("BILI_COOKIE", settingRepository.findById(BILIBILI_COOKIE).map(Setting::getValue).orElse(""));
             json = json.replace("TOKEN", tokens.split(",")[0]);
             Map<String, Object> override = objectMapper.readValue(json, Map.class);
-            overrideConfig(config, "", "", override);
+            overrideConfig(config, null, "", override);
             return replaceString(config, override);
         } catch (Exception e) {
             log.warn("", e);
@@ -728,7 +736,7 @@ public class SubscriptionService {
         return config;
     }
 
-    private static void overrideConfig(Map<String, Object> config, String url, String prefix, Map<String, Object> override) {
+    private static void overrideConfig(Map<String, Object> config, URL url, String prefix, Map<String, Object> override) {
         for (Map.Entry<String, Object> entry : override.entrySet()) {
             try {
                 String key = entry.getKey();
@@ -742,14 +750,8 @@ public class SubscriptionService {
                         if (StringUtils.isBlank(spider)) {
                             spider = (String) config.get("spider");
                         }
-                        if (StringUtils.isNotBlank(spider) && StringUtils.isNotBlank(url)) {
-                            if (spider.startsWith("./")) {
-                                spider = url + spider.substring(1);
-                            } else if (spider.startsWith("/")) {
-                                spider = getRoot(url) + spider;
-                            } else if (!spider.startsWith("http")) {
-                                spider = url + spider;
-                            }
+                        if (StringUtils.isNotBlank(spider) && url != null) {
+                            spider = resolveUrl(url, spider);
                         }
                     }
                     log.debug("overrideConfig: {} {}", key, value);
@@ -762,23 +764,32 @@ public class SubscriptionService {
             }
         }
 
-        if (StringUtils.isNotBlank(url)) {
+        if (url != null) {
             fixApiUrl(config, url);
             fixExtUrl(config, url);
         }
     }
 
-    private static void fixApiUrl(Map<String, Object> config, String url) {
+    public static String resolveUrl(URL url, String relativePath) {
+        try {
+            return new URL(url, relativePath).toString();
+        } catch (MalformedURLException e) {
+            log.warn("", e);
+            return null;
+        }
+    }
+
+    private static void fixApiUrl(Map<String, Object> config, URL url) {
         List<Map<String, Object>> sites = (List<Map<String, Object>>) config.get("sites");
         for (Map<String, Object> site : sites) {
             Object api = site.get("api");
             if (api instanceof String apiUrl) {
                 if (apiUrl.startsWith("./")) {
-                    api = url + apiUrl.substring(1);
+                    api = resolveUrl(url, apiUrl);
                     site.put("api", api);
                     log.debug("api {} -> {}", apiUrl, api);
                 } else if (apiUrl.startsWith("/")) {
-                    api = getRoot(url) + api;
+                    api = resolveUrl(url, apiUrl);
                     site.put("api", api);
                     log.debug("api {} -> {}", apiUrl, api);
                 }
@@ -786,17 +797,17 @@ public class SubscriptionService {
         }
     }
 
-    private static void fixExtUrl(Map<String, Object> config, String url) {
+    private static void fixExtUrl(Map<String, Object> config, URL url) {
         List<Map<String, Object>> sites = (List<Map<String, Object>>) config.get("sites");
         for (Map<String, Object> site : sites) {
             Object ext = site.get("ext");
             if (ext instanceof String extUrl) {
                 if (extUrl.startsWith("./")) {
-                    ext = url + extUrl.substring(1);
+                    ext = resolveUrl(url, extUrl);
                     site.put("ext", ext);
                     log.debug("ext {} -> {}", extUrl, ext);
                 } else if (extUrl.startsWith("/")) {
-                    ext = getRoot(url) + ext;
+                    ext = resolveUrl(url, extUrl);
                     site.put("ext", ext);
                     log.debug("ext {} -> {}", extUrl, ext);
                 }
@@ -804,27 +815,17 @@ public class SubscriptionService {
         }
     }
 
-    private static String fixUrl(String url) {
+    private static URL fixUrl(String url) {
         if (StringUtils.isBlank(url) || !url.startsWith("http")) {
-            return "";
+            return null;
         }
 
-        int index = url.lastIndexOf('/');
-        String file = url.substring(index + 1);
-        if (file.contains(".")) {
-            return url.substring(0, index);
-        }
-        return url;
-    }
-
-    private static String getRoot(String path) {
         try {
-            URL url = new URL(path);
-            return url.getProtocol() + "://" + url.getHost();
+            return new URL(url);
         } catch (MalformedURLException e) {
             log.warn("", e);
+            return null;
         }
-        return "";
     }
 
     private static void overrideList(Map<String, Object> config, Map<String, Object> override, String prefix, String spider, String name, String keyName) {
@@ -946,13 +947,13 @@ public class SubscriptionService {
             log.warn("", e);
         }
 
-        try {
-            Map<String, Object> site = buildSite(token, "csp_Youtube", "YouTube");
-            sites.add(id++, site);
-            log.debug("add Youtube site: {}", site);
-        } catch (Exception e) {
-            log.warn("", e);
-        }
+//        try {
+//            Map<String, Object> site = buildSite(token, "csp_Youtube", "YouTube");
+//            sites.add(id++, site);
+//            log.debug("add Youtube site: {}", site);
+//        } catch (Exception e) {
+//            log.warn("", e);
+//        }
 
         try {
             if (embyRepository.count() > 0) {
@@ -975,12 +976,9 @@ public class SubscriptionService {
         }
 
         try {
-            boolean enabled = settingRepository.findById("enable_live").map(Setting::getValue).orElse("").equals("true");
-            if (enabled) {
-                Map<String, Object> site = buildSite(token, "csp_Live", "网络直播");
-                sites.add(id++, site);
-                log.debug("add Live site: {}", site);
-            }
+            Map<String, Object> site = buildSite(token, "csp_Live", "网络直播");
+            sites.add(id++, site);
+            log.debug("add Live site: {}", site);
         } catch (Exception e) {
             log.warn("", e);
         }
@@ -1049,6 +1047,7 @@ public class SubscriptionService {
                 String json = FileUtils.readFileToString(file, StandardCharsets.UTF_8);
                 String address = readHostAddress();
                 String token = tokens.split(",")[0];
+                json = appendMd5sum(name, json);
                 json = json.replace("./lib/tokenm.json", address + "/pg/lib/tokenm" + (StringUtils.isBlank(token) ? "" : "?token=" + token));
                 json = json.replace("./peizhi.json", address + "/zx/config" + (StringUtils.isBlank(token) ? "" : "?token=" + token));
                 json = json.replace("./json/peizhi.json", address + "/zx/config" + (StringUtils.isBlank(token) ? "" : "?token=" + token));
@@ -1063,6 +1062,19 @@ public class SubscriptionService {
             return null;
         }
         return null;
+    }
+
+    private static String appendMd5sum(String name, String json) {
+        if ("/pg/jsm.json".equals(name)) {
+            try {
+                String md5 = FileUtils.readFileToString(new File("/www/pg/pg.jar.md5"), StandardCharsets.UTF_8).trim();
+                log.debug("pg.jar.md5: {}", md5);
+                json = json.replace("./pg.jar", "./pg.jar;md5;" + md5);
+            } catch (Exception e) {
+                log.warn("read md5 file failed", e);
+            }
+        }
+        return json;
     }
 
     private String getFolder(String path) {
